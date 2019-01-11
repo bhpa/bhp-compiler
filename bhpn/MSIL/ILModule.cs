@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 /// <summary>
@@ -146,7 +146,7 @@ namespace Bhp.Compiler.MSIL
                                         }
                                     }
                                 }
-                                catch (Exception )
+                                catch (Exception err)
                                 {
 
                                 }
@@ -171,7 +171,7 @@ namespace Bhp.Compiler.MSIL
                                                 }
                                             }
                                         }
-                                        catch (Exception)
+                                        catch (Exception err)
                                         {
 
                                         }
@@ -224,7 +224,7 @@ namespace Bhp.Compiler.MSIL
                                 }
                             }
                         }
-                        catch (Exception)
+                        catch (Exception err)
                         {
 
                         }
