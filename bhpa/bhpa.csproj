@@ -23,7 +23,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\bhp-vm\src\bhp-vm\bhp-vm.csproj" />
+    <ProjectReference Include="..\..\bhp-vm\bhp-vm\bhp-vm.csproj" />
   </ItemGroup> 
 
 </Project>
