@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Security.Cryptography;
-using System.Globalization;
+using Bhp.SmartContract;
 
 namespace Bhp.Compiler.MSIL
 {
@@ -864,22 +863,9 @@ namespace Bhp.Compiler.MSIL
             }
             if (calltype == 1)
             {
-                if (this.outModule.option.useBrc8)
-                {
-                    byte _pcount = (byte)defs.Parameters.Count;
-                    byte _rvcount = (byte)(defs.ReturnType.FullName == "System.Void" ? 0 : 1);
-
-                    var c = _Convert1by1(VM.OpCode.CALL_I, null, to, new byte[] { _rvcount, _pcount, 0, 0 });
-                    c.needfixfunc = true;
-                    c.srcfunc = src.tokenMethod;
-
-                }
-                else
-                {
-                    var c = _Convert1by1(VM.OpCode.CALL, null, to, new byte[] { 5, 0 });
-                    c.needfixfunc = true;
-                    c.srcfunc = src.tokenMethod;
-                }
+                var c = _Convert1by1(VM.OpCode.CALL, null, to, new byte[] { 5, 0 });
+                c.needfixfunc = true;
+                c.srcfunc = src.tokenMethod;
                 return 0;
             }
 
@@ -922,20 +908,8 @@ namespace Bhp.Compiler.MSIL
                         //    throw new Exception("bhpmachine OpCodeAttribute field OpData currently supports SYSCALL only with plain non-empty text (not hex)!");
                         //}
 
-                        byte[] bytes = null;
-                        if (this.outModule.option.useSysCallInteropHash)
-                        {
-                            bytes = BitConverter.GetBytes(calldata[j].ToInteropMethodHash());
-                        }
-                        else
-                        {
-                            bytes = System.Text.Encoding.UTF8.GetBytes(calldata[j]);
-                            if (bytes.Length > 252) throw new Exception("string is to long");
-                        }
-                        byte[] outbytes = new byte[bytes.Length + 1];
-                        outbytes[0] = (byte)bytes.Length;
-                        Array.Copy(bytes, 0, outbytes, 1, bytes.Length);
-                        _Convert1by1(VM.OpCode.SYSCALL, null, to, outbytes);
+                        byte[] bytes = BitConverter.GetBytes(calldata[j].ToInteropMethodHash());
+                        _Convert1by1(VM.OpCode.SYSCALL, null, to, bytes);
                     }
                     else
                     {
@@ -948,29 +922,8 @@ namespace Bhp.Compiler.MSIL
             }
             else if (calltype == 4)
             {
-                if (this.outModule.option.useBrc8)
-                {
-                    byte _pcount = (byte)defs.Parameters.Count;
-                    byte _rvcount = (byte)(defs.ReturnType.FullName == "System.Void" ? 0 : 1);
-
-
-                    if (callhash.All(v => v == 0))//empty brc4
-                    {
-                        throw new Exception("brc4 calltype==6");
-                    }
-                    else
-                    {
-                        var bytes = new byte[] { _rvcount, _pcount }.Concat(callhash).ToArray();
-                        _Convert1by1(VM.OpCode.CALL_E, null, to, bytes);
-
-                    }
-
-                }
-                else
-                {
-                    _Convert1by1(VM.OpCode.APPCALL, null, to, callhash);
-                }
-
+                _ConvertPush(callhash, src, to);
+                _Insert1(VM.OpCode.SYSCALL, "", to, BitConverter.GetBytes(InteropService.System_Contract_Call));
             }
             else if (calltype == 5)
             {
@@ -998,24 +951,7 @@ namespace Bhp.Compiler.MSIL
                 _ConvertPush(callpcount, src, to);
                 _Convert1by1(VM.OpCode.ROLL, null, to);
 
-                //dyn appcall
-                if (this.outModule.option.useBrc8)
-                {
-                    byte _pcount = (byte)defs.Parameters.Count;
-                    byte _rvcount = (byte)(defs.ReturnType.FullName == "System.Void" ? 0 : 1);
-                    //byte signature = (byte)(
-                    //    (retcount << 7)
-                    //    |
-                    //    defs.Parameters.Count
-                    //    );
-                    _Convert1by1(VM.OpCode.CALL_ED, null, to, new byte[] { _rvcount, _pcount });
-                }
-                else
-                {
-                    byte[] nullhash = new byte[20];
-                    _Convert1by1(VM.OpCode.APPCALL, null, to, nullhash);
-                }
-
+                _Convert1by1(VM.OpCode.SYSCALL, null, to, BitConverter.GetBytes(InteropService.System_Contract_Call));
             }
             return 0;
         }
