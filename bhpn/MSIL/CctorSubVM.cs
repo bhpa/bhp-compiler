@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Bhp.Compiler.MSIL
 {
@@ -207,7 +205,8 @@ namespace Bhp.Compiler.MSIL
                     case CodeEx.Stsfld:
                         {
                             var field = src.tokenUnknown as Mono.Cecil.FieldReference;
-                            var fname = field.DeclaringType.FullName + "::" + field.Name;
+                            var fname = field.FullName;
+                            // field.DeclaringType.FullName + "::" + field.Name;
                             to.staticfields[fname] = calcStack.Pop();
                         }
                         break;

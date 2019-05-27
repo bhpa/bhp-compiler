@@ -33,6 +33,7 @@ namespace Bhp.Compiler
         public ConvOption option;
         public Dictionary<string, BhpMethod> mapMethods = new Dictionary<string, BhpMethod>();
         public Dictionary<string, BhpEvent> mapEvents = new Dictionary<string, BhpEvent>();
+        public Dictionary<string, BhpField> mapFields = new Dictionary<string, BhpField>();
         //public Dictionary<string, byte[]> codes = new Dictionary<string, byte[]>();
         //public byte[] GetScript(byte[] script_hash)
         //{
@@ -87,6 +88,7 @@ namespace Bhp.Compiler
     }
     public class BhpMethod
     {
+        public bool isEntry = false;
         public string _namespace;
         public string name;
         public string displayName;
@@ -145,6 +147,20 @@ namespace Bhp.Compiler
         public int lastparam = -1;//最后一个加载的参数对应
         public int lastCast = -1;
     }
+
+    public class BhpField : BhpParam
+    {
+        public BhpField(string name, string type, int index) : base(name, type)
+        {
+            this.index = index;
+        }
+        public int index
+        {
+            get;
+            private set;
+        }
+    }
+
     public class BhpEvent
     {
         public string _namespace;
