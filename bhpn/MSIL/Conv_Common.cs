@@ -81,7 +81,6 @@ namespace Bhp.Compiler.MSIL
                 _code.debugILCode = src.code.ToString();
             }
 
-
             addr++;
 
             _code.code = code;
@@ -129,6 +128,7 @@ namespace Bhp.Compiler.MSIL
             if (i > 0 && i <= 16) return _Convert1by1((VM.OpCode)(byte)i + 0x50, src, to);
             return _ConvertPush(((BigInteger)i).ToByteArray(), src, to);
         }
+
         private int _ConvertPushI8WithConv(ILMethod from, long i, OpCode src, BhpMethod to)
         {
             var next = from.GetNextCodeAddr(src.addr);
@@ -177,14 +177,10 @@ namespace Bhp.Compiler.MSIL
                     return 1;
                 }
             }
-           
-
-            {
-                _ConvertPush(i, src, to);
-                return 0;
-            }
-
+            _ConvertPush(i, src, to);
+            return 0;
         }
+
         private int _ConvertPushI4WithConv(ILMethod from, int i, OpCode src, BhpMethod to)
         {
             var next = from.GetNextCodeAddr(src.addr);
@@ -321,7 +317,29 @@ namespace Bhp.Compiler.MSIL
             }
         }
 
-        private void _insertEndCode(ILMethod from, BhpMethod to, OpCode src)
+        private void _insertBeginCodeEntry(BhpMethod to)
+        {
+            _InsertPush(2, "begincode", to);
+            _Insert1(VM.OpCode.NEWARRAY, "", to);
+            _Insert1(VM.OpCode.TOALTSTACK, "", to);
+            //移动参数槽位
+            for (var i = 0; i < 2; i++)
+            {
+                //getarray
+                _Insert1(VM.OpCode.FROMALTSTACK, "set param:" + i, to);
+                _Insert1(VM.OpCode.DUP, null, to);
+                _Insert1(VM.OpCode.TOALTSTACK, null, to);
+
+                _InsertPush(i, "", to); //Array pos
+
+                _InsertPush(2, "", to); //Array item
+                _Insert1(VM.OpCode.ROLL, null, to);
+
+                _Insert1(VM.OpCode.SETITEM, null, to);
+            }
+        }
+
+        private void _insertEndCode(BhpMethod to, OpCode src)
         {
             ////占位不谢
             _Convert1by1(VM.OpCode.NOP, src, to);
