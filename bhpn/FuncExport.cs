@@ -132,10 +132,7 @@ namespace vmtool
                         item.SetDictValue("name", v.name);
                         item.SetDictValue("type", ptype);
                     }
-                }
-
-                var rtype = ConvType(mm.returntype);
-                funcsign.SetDictValue("returntype", rtype);
+                }               
             }
 
             //events
