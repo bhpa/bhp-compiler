@@ -83,12 +83,12 @@ namespace Bhp.Compiler.MSIL
                     if (m.Value.method.IsAddOn || m.Value.method.IsRemoveOn)
                         continue;//event 自动生成的代码，不要
                     BhpMethod nm = new BhpMethod();
-                    if (m.Key.Contains(".cctor"))
+                    if (m.Value.method.Is_cctor())
                     {
                         CctorSubVM.Parse(m.Value, this.outModule);
                         continue;
                     }
-                    if (m.Value.method.IsConstructor) continue;
+                    if (m.Value.method.Is_ctor()) continue;
                     nm._namespace = m.Value.method.DeclaringType.FullName;
                     nm.name = m.Value.method.FullName;
                     nm.displayName = m.Value.method.Name;
@@ -134,7 +134,7 @@ namespace Bhp.Compiler.MSIL
                 foreach (var m in value.methods)
                 {
                     if (m.Value.method == null) continue;
-                    if (m.Key.Contains(".cctor"))
+                    if (m.Value.method.Is_cctor())
                     {
                         continue;
                     }
@@ -637,7 +637,7 @@ namespace Bhp.Compiler.MSIL
                         var code = _Convert1by1(VM.OpCode.JMP, src, to, new byte[] { 0, 0 });
                         code.needfix = true;
                         code.srcaddr = src.tokenAddr_Index;
-                    }                
+                    }
                     break;
                 case CodeEx.Switch:
                     {
@@ -957,7 +957,7 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Stelem_R8:
                 case CodeEx.Stelem_Ref:
                     _Convert1by1(VM.OpCode.SETITEM, src, to);
-                    break;                
+                    break;
                 case CodeEx.Isinst://支持处理as 表达式
                     break;
                 case CodeEx.Castclass:

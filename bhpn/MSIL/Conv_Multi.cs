@@ -995,13 +995,13 @@ namespace Bhp.Compiler.MSIL
             try
             {
                 BhpMethod nm = new BhpMethod();
-                if (method.FullName.Contains(".cctor"))
+                if (method.Is_cctor())
                 {
                     CctorSubVM.Parse(_method, this.outModule);
                     //continue;
                     return false;
                 }
-                if (method.IsConstructor)
+                if (method.Is_cctor())
                 {
                     return false;
                     //continue;
