@@ -6,7 +6,9 @@ namespace Bhp.Compiler.MSIL
 {
     class CctorSubVM
     {
-        static Stack<object> calcStack;
+        private const ushort MaxArraySize = ushort.MaxValue;
+        private static Stack<object> calcStack;
+
         public static object Dup(object src)
         {
             if (src.GetType() == typeof(byte[]))
@@ -100,6 +102,7 @@ namespace Bhp.Compiler.MSIL
                             if ((src.tokenType == "System.Byte") || (src.tokenType == "System.SByte"))
                             {
                                 var count = (int)calcStack.Pop();
+                                if (count > MaxArraySize) throw new ArgumentException("MaxArraySize found");
                                 byte[] data = new byte[count];
                                 calcStack.Push(data);
                             }
@@ -158,7 +161,7 @@ namespace Bhp.Compiler.MSIL
                                 }
                                 else
                                 {
-                                    var p =(int)calcStack.Pop();
+                                    var p = (int)calcStack.Pop();
                                     calcStack.Push(new System.Numerics.BigInteger(p).ToByteArray());
                                 }
                             }
@@ -192,7 +195,7 @@ namespace Bhp.Compiler.MSIL
                                             var hex = HexString2Bytes(text);
                                             calcStack.Push(hex);
                                         }
-                                        else if(attrname=="ToBigInteger")
+                                        else if (attrname == "ToBigInteger")
                                         {
                                             var n = System.Numerics.BigInteger.Parse(text);
                                             calcStack.Push(n);
@@ -212,8 +215,8 @@ namespace Bhp.Compiler.MSIL
                         break;
                     case CodeEx.Stelem_I1:
                         {
-                            var v =(byte)(int)calcStack.Pop();
-                            var index =(int)calcStack.Pop();
+                            var v = (byte)(int)calcStack.Pop();
+                            var index = (int)calcStack.Pop();
                             var array = calcStack.Pop() as byte[];
                             array[index] = v;
                         }
