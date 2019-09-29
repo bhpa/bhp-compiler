@@ -22,6 +22,7 @@ namespace Bhp.Compiler.MSIL
     //    }
 
     //}
+
     class DefLogger : ILogger
     {
         public void Log(string log)
@@ -29,8 +30,9 @@ namespace Bhp.Compiler.MSIL
             Console.WriteLine(log);
         }
     }
+
     /// <summary>
-    /// 从ILCode 向小蚁 VM 转换的转换器
+    /// 从ILCode 向 VM 转换的转换器
     /// </summary>
     public partial class ModuleConverter
     {
@@ -60,16 +62,18 @@ namespace Bhp.Compiler.MSIL
 #endif
         }
 
-        ILogger logger;
+        private readonly ILogger logger;
         public BhpModule outModule;
-        ILModule inModule;
+        private ILModule inModule;
         public Dictionary<ILMethod, BhpMethod> methodLink = new Dictionary<ILMethod, BhpMethod>();
         public BhpModule Convert(ILModule _in, ConvOption option = null)
         {
             this.inModule = _in;
             //logger.Log("beginConvert.");
-            this.outModule = new BhpModule(this.logger);
-            this.outModule.option = option == null ? ConvOption.Default : option;
+            this.outModule = new BhpModule(this.logger)
+            {
+                option = option ?? ConvOption.Default
+            };
             foreach (var t in _in.mapType)
             {
                 if (t.Key.Contains("<"))
@@ -82,41 +86,29 @@ namespace Bhp.Compiler.MSIL
                     if (m.Value.method == null) continue;
                     if (m.Value.method.IsAddOn || m.Value.method.IsRemoveOn)
                         continue;//event 自动生成的代码，不要
-                    BhpMethod nm = new BhpMethod();
                     if (m.Value.method.Is_cctor())
                     {
                         CctorSubVM.Parse(m.Value, this.outModule);
                         continue;
                     }
                     if (m.Value.method.Is_ctor()) continue;
-                    nm._namespace = m.Value.method.DeclaringType.FullName;
-                    nm.name = m.Value.method.FullName;
-                    nm.displayName = m.Value.method.Name;
-
-                    Mono.Collections.Generic.Collection<Mono.Cecil.CustomAttribute> ca = m.Value.method.CustomAttributes;
-                    foreach (var attr in ca)
-                    {
-                        if (attr.AttributeType.Name == "DisplayNameAttribute")
-                        {
-                            nm.displayName = (string)attr.ConstructorArguments[0].Value;
-                        }
-                    }
-                    nm.inSmartContract = m.Value.method.DeclaringType.BaseType.Name == "SmartContract";
-                    nm.isPublic = m.Value.method.IsPublic;
+                    BhpMethod nm = new BhpMethod(m.Value.method);
                     this.methodLink[m.Value] = nm;
                     outModule.mapMethods[nm.name] = nm;
                 }
+
                 foreach (var e in t.Value.fields)
                 {
                     if (e.Value.isEvent)
                     {
-                        BhpEvent ae = new BhpEvent();
-                        ae._namespace = e.Value.field.DeclaringType.FullName;
-                        ae.name = ae._namespace + "::" + e.Key;
-                        ae.displayName = e.Value.displayName;
-                        ae.returntype = e.Value.returntype;
-                        ae.paramtypes = e.Value.paramtypes;
+                        BhpEvent ae = new BhpEvent(e.Value);
                         outModule.mapEvents[ae.name] = ae;
+                    }
+                    else if (e.Value.field.IsStatic)
+                    {
+                        var _fieldindex = outModule.mapFields.Count;
+                        var field = new BhpField(e.Key, e.Value.type, _fieldindex);
+                        outModule.mapFields[e.Value.field.FullName] = field;
                     }
                 }
             }
@@ -157,9 +149,8 @@ namespace Bhp.Compiler.MSIL
                                 }
                             }
                         }
-                        catch (Exception err)
+                        catch
                         {
-
                         }
 
                         foreach (var src in m.Value.paramtypes)
@@ -167,14 +158,21 @@ namespace Bhp.Compiler.MSIL
                             nm.paramtypes.Add(new BhpParam(src.name, src.type));
                         }
 
-                        byte[] outcall; string name; VM.OpCode[] opcodes; string[] opdata;
-                        if (IsAppCall(m.Value.method, out outcall))
+                        if (IsAppCall(m.Value.method, out byte[] outcall))
                             continue;
                         if (IsNonCall(m.Value.method))
                             continue;
-                        if (IsMixAttribute(m.Value.method, out opcodes, out opdata))
+                        if (IsMixAttribute(m.Value.method, out VM.OpCode[] opcodes, out string[] opdata))
                             continue;
 
+                        if (m.Key.Contains("::Main("))
+                        {
+                            BhpMethod _m = outModule.mapMethods[m.Key];
+                            if (_m.inSmartContract)
+                            {
+                                nm.isEntry = true;
+                            }
+                        }
                         this.ConvertMethod(m.Value, nm);
                     }
                     //catch (Exception err)
@@ -409,6 +407,10 @@ namespace Bhp.Compiler.MSIL
             this.addr = 0;
             this.addrconv.Clear();
 
+            if (to.isEntry)
+            {
+                _insertSharedStaticVarCode(to);
+            }
             //插入一个记录深度的代码，再往前的是参数
             _insertBeginCode(from, to);
 
@@ -436,11 +438,12 @@ namespace Bhp.Compiler.MSIL
                     }
                 }
             }
+
             ConvertAddrInMethod(to);
         }
 
-        Dictionary<int, int> addrconv = new Dictionary<int, int>();
-        int addr = 0;
+        private readonly Dictionary<int, int> addrconv = new Dictionary<int, int>();
+        private int addr = 0;
 
         //Dictionary<string, string[]> srccodes = new Dictionary<string, string[]>();
         //string getSrcCode(string url, int line)
@@ -502,6 +505,7 @@ namespace Bhp.Compiler.MSIL
             {
                 if (c.needfix)
                 {
+
                     try
                     {
                         var _addr = addrconv[c.srcaddr];
@@ -532,9 +536,11 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Pop:
                     _Convert1by1(VM.OpCode.DROP, src, to);
                     break;
+
                 case CodeEx.Ldnull:
                     _ConvertPush(new byte[0], src, to);
                     break;
+
                 case CodeEx.Ldc_I4:
                 case CodeEx.Ldc_I4_S:
                     skipcount = _ConvertPushI4WithConv(method, src.tokenI32, src, to);
@@ -590,6 +596,7 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Stloc_S:
                     _ConvertStLoc(method, src, to, src.tokenI32);
                     break;
+
                 case CodeEx.Ldloc_0:
                     _ConvertLdLoc(method, src, to, 0);
                     break;
@@ -605,6 +612,7 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Ldloc_S:
                     _ConvertLdLoc(method, src, to, src.tokenI32);
                     break;
+
                 case CodeEx.Ldarg_0:
                     _ConvertLdArg(method, src, to, 0);
                     break;
@@ -638,6 +646,7 @@ namespace Bhp.Compiler.MSIL
                         code.needfix = true;
                         code.srcaddr = src.tokenAddr_Index;
                     }
+
                     break;
                 case CodeEx.Switch:
                     {
@@ -655,7 +664,6 @@ namespace Bhp.Compiler.MSIL
                         //    code.srcaddrswitch[i] = src.tokenAddr_Switch[i];
                         //}
                     }
-                    break;
                 case CodeEx.Brtrue:
                 case CodeEx.Brtrue_S:
                     {
@@ -783,10 +791,12 @@ namespace Bhp.Compiler.MSIL
                         code.srcaddr = src.tokenAddr_Index;
                     }
                     break;
+
                 //Stack
                 case CodeEx.Dup:
                     _Convert1by1(VM.OpCode.DUP, src, to);
                     break;
+
                 //Bitwise logic
                 case CodeEx.And:
                     _Convert1by1(VM.OpCode.AND, src, to);
@@ -800,6 +810,7 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Not:
                     _Convert1by1(VM.OpCode.INVERT, src, to);
                     break;
+
                 //math
                 case CodeEx.Add:
                 case CodeEx.Add_Ovf:
@@ -834,6 +845,7 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Shr_Un:
                     _Convert1by1(VM.OpCode.SHR, src, to);
                     break;
+
                 //logic
                 case CodeEx.Clt:
                 case CodeEx.Clt_Un:
@@ -846,15 +858,18 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Ceq:
                     _Convert1by1(VM.OpCode.NUMEQUAL, src, to);
                     break;
+
                 //call
                 case CodeEx.Call:
                 case CodeEx.Callvirt:
                     _ConvertCall(src, to);
                     break;
+
                 //用上一个参数作为数量，new 一个数组
                 case CodeEx.Newarr:
                     skipcount = _ConvertNewArr(method, src, to);
                     break;
+
 
                 //array
                 //用意为byte[] 取一部分.....
@@ -958,11 +973,13 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Stelem_Ref:
                     _Convert1by1(VM.OpCode.SETITEM, src, to);
                     break;
+
                 case CodeEx.Isinst://支持处理as 表达式
                     break;
                 case CodeEx.Castclass:
                     _ConvertCastclass(method, src, to);
                     break;
+
                 case CodeEx.Box:
                 case CodeEx.Unbox:
                 case CodeEx.Unbox_Any:
@@ -999,6 +1016,7 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Conv_U4:
                 case CodeEx.Conv_U8:
                     break;
+
                 ///////////////////////////////////////////////
                 //以下因为支持结构体而出现
                 //加载一个引用，这里改为加载一个pos值
@@ -1018,6 +1036,7 @@ namespace Bhp.Compiler.MSIL
                 case CodeEx.Ldfld:
                     _ConvertLdfld(src, to);
                     break;
+
                 case CodeEx.Ldsfld:
                     {
                         _Convert1by1(VM.OpCode.NOP, src, to);
@@ -1028,39 +1047,34 @@ namespace Bhp.Compiler.MSIL
                             ((d.Attributes & Mono.Cecil.FieldAttributes.Static) > 0)
                             )
                         {
-                            var fname = d.DeclaringType.FullName + "::" + d.Name;
+                            var fname = d.FullName;// d.DeclaringType.FullName + "::" + d.Name;
                             var _src = outModule.staticfields[fname];
                             if (_src is byte[])
                             {
                                 var bytesrc = (byte[])_src;
                                 _ConvertPush(bytesrc, src, to);
                             }
-                            else if (_src is int)
+                            else if (_src is int intsrc)
                             {
-                                var intsrc = (int)_src;
                                 _ConvertPush(intsrc, src, to);
                             }
-                            else if (_src is long)
+                            else if (_src is long longsrc)
                             {
-                                var intsrc = (long)_src;
-                                _ConvertPush(intsrc, src, to);
-
+                                _ConvertPush(longsrc, src, to);
                             }
-                            else if (_src is Boolean)
+                            else if (_src is bool bsrc)
                             {
-                                var bsrc = (Boolean)_src;
                                 _ConvertPush(bsrc ? 1 : 0, src, to);
                             }
-                            else if (_src is string)
+                            else if (_src is string strsrc)
                             {
-                                var bytesrc = System.Text.Encoding.UTF8.GetBytes((string)_src);
+                                var bytesrc = Encoding.UTF8.GetBytes(strsrc);
                                 _ConvertPush(bytesrc, src, to);
                             }
-                            else if (_src is BigInteger)
+                            else if (_src is BigInteger bisrc)
                             {
-                                byte[] bytes = ((BigInteger)_src).ToByteArray();
+                                byte[] bytes = bisrc.ToByteArray();
                                 _ConvertPush(bytes, src, to);
-
                             }
                             else
                             {
@@ -1091,9 +1105,32 @@ namespace Bhp.Compiler.MSIL
                             }
                         }
                         else
-                        {//如果走到这里，是一个静态成员，但是没有添加readonly 表示
-                            throw new Exception("Just allow defined a static variable with readonly." + d.FullName);
+                        {
+                            //如果走到这里，是一个静态成员，但是没有添加readonly 表示
+                            //lights add,need static var load function
+                            var field = this.outModule.mapFields[d.FullName];
+                            _Convert1by1(VM.OpCode.DUPFROMALTSTACKBOTTOM, null, to);
+                            _ConvertPush(field.index, null, to);
+
+                            _Insert1(VM.OpCode.PICKITEM, "", to);
+
+                            //throw new Exception("Just allow defined a static variable with readonly." + d.FullName);
                         }
+                    }
+                    break;
+                case CodeEx.Stsfld:
+                    {
+                        _Convert1by1(VM.OpCode.NOP, src, to);
+                        var d = src.tokenUnknown as Mono.Cecil.FieldDefinition;
+                        var field = this.outModule.mapFields[d.FullName];
+                        _Convert1by1(VM.OpCode.DUPFROMALTSTACKBOTTOM, null, to);
+                        _ConvertPush(field.index, null, to);
+
+                        //got v to top
+                        _ConvertPush(2, null, to);
+                        _Convert1by1(VM.OpCode.ROLL, null, to);
+
+                        _Insert1(VM.OpCode.SETITEM, "", to);
                     }
                     break;
                 case CodeEx.Throw:
@@ -1103,6 +1140,7 @@ namespace Bhp.Compiler.MSIL
                         //_Insert1(VM.OpCode.RET, "", to);
                     }
                     break;
+
                 default:
 #if WITHPDB
                     logger.Log("unsupported instruction " + src.code + "\r\n   in: " + to.name + "\r\n");
@@ -1111,6 +1149,7 @@ namespace Bhp.Compiler.MSIL
                     throw new Exception("unsupported instruction " + src.code + "\r\n   in: " + to.name + "\r\n");
 #endif
             }
+
             return skipcount;
         }
     }
