@@ -18,7 +18,6 @@ namespace Bhp.Compiler
         //控制台输出约定了特别的语法
         public static void Main(string[] args)
         {
-
             //set console
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             var log = new DefLogger();
@@ -27,7 +26,7 @@ namespace Bhp.Compiler
             if (args.Length == 0)
             {
                 log.Log("need one param for DLL filename.");
-                log.Log("Example:bhpn abc.dll");
+                log.Log("Example:Bhpn abc.dll");
                 return;
             }
 
@@ -50,8 +49,8 @@ namespace Bhp.Compiler
             }
 
             ILModule mod = new ILModule(log);
-            System.IO.Stream fs = null;
-            System.IO.Stream fspdb = null;
+            Stream fs;
+            Stream fspdb = null;
 
             //open file
             try
@@ -79,8 +78,8 @@ namespace Bhp.Compiler
                 log.Log("LoadModule Error:" + err.ToString());
                 return;
             }
-            byte[] bytes = null;
-            bool bSucc = false;
+            byte[] bytes;
+            int bSucc = 0;
             string jsonstr = null;
             //convert and build
             try
@@ -116,7 +115,7 @@ namespace Bhp.Compiler
                 string bytesname = onlyname + ".nef";
                 var nef = new NefFile
                 {
-                    Compiler = "bhpn",
+                    Compiler = "Bhpn",
                     Version = Version.Parse(((AssemblyFileVersionAttribute)Assembly.GetExecutingAssembly()
                         .GetCustomAttribute(typeof(AssemblyFileVersionAttribute))).Version),
                     Script = bytes,
@@ -131,7 +130,7 @@ namespace Bhp.Compiler
                     nef.Serialize(writer);
                 }
                 log.Log("write:" + bytesname);
-                bSucc = true;
+                bSucc++;
             }
             catch (Exception err)
             {
@@ -140,17 +139,34 @@ namespace Bhp.Compiler
             }
             try
             {
-
                 string abiname = onlyname + ".abi.json";
 
                 File.Delete(abiname);
                 File.WriteAllText(abiname, jsonstr);
                 log.Log("write:" + abiname);
-                bSucc = true;
+                bSucc++;
             }
             catch (Exception err)
             {
                 log.Log("Write abi Error:" + err.ToString());
+                return;
+            }
+            try
+            {
+                string manifest = onlyname + ".manifest.json";
+                string defManifest =
+                    @"{""groups"":[],""features"":{""storage"":false,""payable"":false},""abi"":" +
+                    jsonstr +
+                    @",""permissions"":[{""contract"":""*"",""methods"":""*""}],""trusts"":[],""safeMethods"":[]}";
+
+                File.Delete(manifest);
+                File.WriteAllText(manifest, defManifest);
+                log.Log("write:" + manifest);
+                bSucc++;
+            }
+            catch (Exception err)
+            {
+                log.Log("Write manifest Error:" + err.ToString());
                 return;
             }
             try
@@ -164,7 +180,7 @@ namespace Bhp.Compiler
 
             }
 
-            if (bSucc)
+            if (bSucc == 3)
             {
                 log.Log("SUCC");
             }

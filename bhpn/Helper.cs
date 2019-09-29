@@ -8,9 +8,9 @@ namespace Bhp.Compiler
 {
     public static class Helper
     {
-        // System.Void Neo.Compiler.MSIL.TestClasses.Contract_syscall::.cctor()
+        // System.Void Bhp.Compiler.MSIL.TestClasses.Contract_syscall::.cctor()
         private readonly static Regex _regex_cctor = new Regex(@".*\:\:\.cctor\(\)");
-        // System.Void Neo.Compiler.MSIL.TestClasses.Contract_syscall::.ctor(System.Int32)
+        // System.Void Bhp.Compiler.MSIL.TestClasses.Contract_syscall::.ctor(System.Int32)
         private readonly static Regex _regex_ctor = new Regex(@".*\:\:\.ctor\(.*\)");
 
         public static bool Is_cctor(this MethodDefinition method)

@@ -1,18 +1,23 @@
-﻿using System.Collections.Generic;
-using System.Security.Cryptography;
+﻿using Mono.Cecil;
+using Bhp.Compiler.MSIL;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 
 namespace Bhp.Compiler
 {
     public class BhpModule
     {
-        public BhpModule(ILogger logger)
-        {
-            this.logger = logger;
-        }
-        ILogger logger;
-        //没类型，只有方法
+        public BhpModule(ILogger logger) { }
+
+        public string mainMethod;
+        public ConvOption option;
+        public Dictionary<string, BhpMethod> mapMethods = new Dictionary<string, BhpMethod>();
+        public Dictionary<string, BhpEvent> mapEvents = new Dictionary<string, BhpEvent>();
+        public Dictionary<string, BhpField> mapFields = new Dictionary<string, BhpField>();
+        public Dictionary<string, object> staticfields = new Dictionary<string, object>();
         public SortedDictionary<int, BhpCode> total_Codes = new SortedDictionary<int, BhpCode>();
+
         public byte[] Build()
         {
             List<byte> bytes = new List<byte>();
@@ -28,13 +33,8 @@ namespace Bhp.Compiler
             return bytes.ToArray();
             //将body链接，生成this.code       byte[]
             //并计算 this.codehash            byte[]
-        }
-        public string mainMethod;
-        public ConvOption option;
-        public Dictionary<string, BhpMethod> mapMethods = new Dictionary<string, BhpMethod>();
-        public Dictionary<string, BhpEvent> mapEvents = new Dictionary<string, BhpEvent>();
-        public Dictionary<string, BhpField> mapFields = new Dictionary<string, BhpField>();
-        //public Dictionary<string, byte[]> codes = new Dictionary<string, byte[]>();
+        } //public Dictionary<string, byte[]> codes = new Dictionary<string, byte[]>();
+
         //public byte[] GetScript(byte[] script_hash)
         //{
         //    string strhash = "";
@@ -44,10 +44,11 @@ namespace Bhp.Compiler
         //    }
         //    return codes[strhash];
         //}
+
         public string GenJson()
         {
             MyJson.JsonNode_Object json = new MyJson.JsonNode_Object();
-            json["__name__"] = new MyJson.JsonNode_ValueString("bhpmodule.");
+            json["__name__"] = new MyJson.JsonNode_ValueString("Bhpmodule.");
 
             //code
             var jsoncode = new MyJson.JsonNode_Array();
@@ -73,21 +74,19 @@ namespace Bhp.Compiler
                 methodinfo[m.Key] = m.Value.GenJson();
             }
 
-
             StringBuilder sb = new StringBuilder();
             json.ConvertToStringWithFormat(sb, 4);
             return sb.ToString();
         }
-        public void FromJson(string json)
-        {
-
-        }
-        SHA1 sha1 = SHA1.Create();
-        public Dictionary<string, object> staticfields = new Dictionary<string, object>();
-       
     }
+
     public class BhpMethod
     {
+        public string lastsfieldname = null;//最后一个加载的静态成员的名字，仅event使用
+
+        public int lastparam = -1;//最后一个加载的参数对应
+        public int lastCast = -1;
+
         public bool isEntry = false;
         public string _namespace;
         public string name;
@@ -106,10 +105,7 @@ namespace Bhp.Compiler
         {
             MyJson.JsonNode_Object json = new MyJson.JsonNode_Object();
             json.SetDictValue("name", this.name);
-            var sha1 = SHA1.Create();
-
             json.SetDictValue("returntype", this.returntype);
-
             json.SetDictValue("paramcount", this.paramtypes.Count);
             MyJson.JsonNode_Array jsonparams = new MyJson.JsonNode_Array();
             json.SetDictValue("params", jsonparams);
@@ -122,10 +118,7 @@ namespace Bhp.Compiler
             }
             return json;
         }
-        public void FromJson(MyJson.JsonNode_Object json)
-        {
 
-        }
         //public byte[] Build()
         //{
         //    List<byte> bytes = new List<byte>();
@@ -142,22 +135,40 @@ namespace Bhp.Compiler
         //    //将body链接，生成this.code       byte[]
         //    //并计算 this.codehash            byte[]
         //}
-        public string lastsfieldname =null;//最后一个加载的静态成员的名字，仅event使用
 
-        public int lastparam = -1;//最后一个加载的参数对应
-        public int lastCast = -1;
-    }
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        public BhpMethod() { }
 
-    public class BhpField : BhpParam
-    {
-        public BhpField(string name, string type, int index) : base(name, type)
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="method">Method</param>
+        public BhpMethod(MethodDefinition method)
         {
-            this.index = index;
+            _namespace = method.DeclaringType.FullName;
+            name = method.FullName;
+            displayName = method.Name;
+            inSmartContract = method.DeclaringType.BaseType.Name == "SmartContract";
+            isPublic = method.IsPublic;
+
+            foreach (var attr in method.CustomAttributes)
+            {
+                ProcessAttribute(attr);
+            }
         }
-        public int index
+
+        private void ProcessAttribute(CustomAttribute attr)
         {
-            get;
-            private set;
+            switch (attr.AttributeType.Name)
+            {
+                case nameof(DisplayNameAttribute):
+                    {
+                        displayName = (string)attr.ConstructorArguments[0].Value;
+                        break;
+                    }
+            }
         }
     }
 
@@ -168,6 +179,15 @@ namespace Bhp.Compiler
         public string displayName;
         public List<BhpParam> paramtypes = new List<BhpParam>();
         public string returntype;
+
+        public BhpEvent(ILField value)
+        {
+            _namespace = value.field.DeclaringType.FullName;
+            name = value.field.DeclaringType.FullName + "::" + value.field.Name;
+            displayName = value.displayName;
+            returntype = value.returntype;
+            paramtypes = value.paramtypes;
+        }
     }
 
     public class BhpCode
@@ -217,7 +237,6 @@ namespace Bhp.Compiler
         }
         public MyJson.JsonNode_ValueString GenJson()
         {
-            MyJson.JsonNode_Object json = new MyJson.JsonNode_Object();
             string info = "" + addr.ToString("X04") + " " + code.ToString();
             for (var j = 0; j < 16 - code.ToString().Length; j++)
             {
@@ -243,27 +262,25 @@ namespace Bhp.Compiler
             }
             return new MyJson.JsonNode_ValueString(info);
         }
-        public void FromJson(MyJson.JsonNode_Object json)
-        {
+    }
 
+    public class BhpField : BhpParam
+    {
+        public int index { get; private set; }
+        public BhpField(string name, string type, int index) : base(name, type)
+        {
+            this.index = index;
         }
     }
+
     public class BhpParam
     {
+        public string name { get; private set; }
+        public string type { get; private set; }
         public BhpParam(string name, string type)
         {
             this.name = name;
             this.type = type;
-        }
-        public string name
-        {
-            get;
-            private set;
-        }
-        public string type
-        {
-            get;
-            private set;
         }
         public override string ToString()
         {

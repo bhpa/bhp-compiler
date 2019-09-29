@@ -1,8 +1,8 @@
+using Bhp.SmartContract;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using Bhp.SmartContract;
 
 namespace Bhp.Compiler.MSIL
 {
@@ -13,7 +13,6 @@ namespace Bhp.Compiler.MSIL
     {
         private void _ConvertStLoc(ILMethod method, OpCode src, BhpMethod to, int pos)
         {
-
             //get array
             //_Convert1by1(VM.OpCode.FROMALTSTACK, src, to);
             //_Convert1by1(VM.OpCode.DUP, null, to);
@@ -29,7 +28,6 @@ namespace Bhp.Compiler.MSIL
 
             _Convert1by1(VM.OpCode.SETITEM, null, to);
 
-
             //_Convert1by1(VM.OpCode.CLONESTRUCTONLY, src, to);
             ////push d
             //var c = _Convert1by1(VM.OpCode.DEPTH, null, to);
@@ -38,7 +36,6 @@ namespace Bhp.Compiler.MSIL
             //    c.debugcode = "from StLoc -> 6 code";
             //    c.debugline = 0;
             //}
-
 
             ////_Convert1by1(VM.ScriptOp.OP_DUP, src, to);
             ////push n
@@ -57,9 +54,9 @@ namespace Bhp.Compiler.MSIL
             ////swap d-n-1 and top
             //_Convert1by1(VM.OpCode.XSWAP, null, to);
             ////drop top
-            //_Convert1by1(VM.OpCode.DROP, null, to);
-
+            //_Convert1by1(VM.OpCode.DROP, null, to);        
         }
+
         private void _ConvertLdLoc(ILMethod method, OpCode src, BhpMethod to, int pos)
         {
             //get array
@@ -70,12 +67,10 @@ namespace Bhp.Compiler.MSIL
             //get i
             _ConvertPush(pos + method.paramtypes.Count, null, to);//翻转取参数顺序
             _Convert1by1(VM.OpCode.PICKITEM, null, to);
-
-
         }
         private void _ConvertLdLocA(ILMethod method, OpCode src, BhpMethod to, int pos)
-        {//这有两种情况，我们需要先判断这个引用地址是拿出来干嘛的
-
+        {
+            //这有两种情况，我们需要先判断这个引用地址是拿出来干嘛的
             var n1 = method.body_Codes[method.GetNextCodeAddr(src.addr)];
             var n2 = method.body_Codes[method.GetNextCodeAddr(n1.addr)];
             if (n1.code == CodeEx.Initobj)//初始化结构体，必须给引用地址
@@ -92,6 +87,7 @@ namespace Bhp.Compiler.MSIL
                 _ConvertLdLoc(method, src, to, pos);
             }
         }
+
         private void _ConvertCastclass(ILMethod method, OpCode src, BhpMethod to)
         {
             var type = src.tokenUnknown as Mono.Cecil.TypeReference;
@@ -112,9 +108,9 @@ namespace Bhp.Compiler.MSIL
             }
             catch
             {
-
             }
         }
+
         private void _ConvertLdArg(ILMethod method, OpCode src, BhpMethod to, int pos)
         {
             try
@@ -137,7 +133,6 @@ namespace Bhp.Compiler.MSIL
             }
             catch
             {
-
             }
             //}
             //get array
@@ -172,6 +167,7 @@ namespace Bhp.Compiler.MSIL
             ////pick
             //_Convert1by1(VM.OpCode.PICK, null, to);
         }
+
         private void _ConvertStArg(OpCode src, BhpMethod to, int pos)
         {
             //get array
@@ -200,13 +196,9 @@ namespace Bhp.Compiler.MSIL
                         {
                             var type = attr.ConstructorArguments[0].Type;
                             var value = (string)attr.ConstructorArguments[0].Value;
-
                             //dosth
                             name = value;
                             return true;
-
-
-
                         }
                         //if(attr.t)
                     }
@@ -252,9 +244,8 @@ namespace Bhp.Compiler.MSIL
                     }
                     else
                     {
-                        var list = a.Value as Mono.Cecil.CustomAttributeArgument[];
 
-                        if (list == null || list.Length < 20)
+                        if (!(a.Value is Mono.Cecil.CustomAttributeArgument[] list) || list.Length < 20)
                         {
                             throw new Exception("hash too short.");
                         }
@@ -268,17 +259,13 @@ namespace Bhp.Compiler.MSIL
                         //dosth
                         return true;
                     }
-
-
-
                 }
                 //if(attr.t)
             }
             hash = null;
             return false;
-
-
         }
+
         public bool IsNonCall(Mono.Cecil.MethodDefinition defs)
         {
             if (defs == null)
@@ -386,12 +373,8 @@ namespace Bhp.Compiler.MSIL
             }
             else
             {
-                opcodes = null;
-                opdata = null;
-
                 // OpCodeAttribute/SyscallAttribute together with different attributes, cannot mix!
                 throw new Exception("bhpmachine Cannot mix OpCode/Syscall/Script attributes with others!");
-                return false;
             }
         }
 
@@ -403,22 +386,17 @@ namespace Bhp.Compiler.MSIL
                     {
                         return false;
                     }
-
                     foreach (var attr in defs.CustomAttributes)
                     {
                         if (attr.AttributeType.Name == "OpCodeAttribute")
                         {
-
                             var type = attr.ConstructorArguments[0].Type;
-
                             Mono.Cecil.CustomAttributeArgument[] val = (Mono.Cecil.CustomAttributeArgument[])attr.ConstructorArguments[0].Value;
-
                             opcodes = new VM.OpCode[val.Length];
                             for (var j = 0; j < val.Length; j++)
                             {
                                 opcodes[j] = ((VM.OpCode)(byte)val[j].Value);
                             }
-
                             return true;
                         }
                         //if(attr.t)
@@ -470,6 +448,7 @@ namespace Bhp.Compiler.MSIL
             name = "Notify";
             return false;
         }
+
         private int _ConvertCall(OpCode src, BhpMethod to)
         {
             Mono.Cecil.MethodReference refs = src.tokenUnknown as Mono.Cecil.MethodReference;
@@ -962,7 +941,7 @@ namespace Bhp.Compiler.MSIL
                     //byte[] outbytes = new byte[bytes.Length + 1];
                     //outbytes[0] = (byte)bytes.Length;
                     //Array.Copy(bytes, 0, outbytes, 1, bytes.Length);
-                    //bytes.Prepend 函数在 dotnet framework 4.6 编译不过                    
+                    //bytes.Prepend 函数在 dotnet framework 4.6 编译不过
                     _Convert1by1(VM.OpCode.SYSCALL, null, to, bytes);
                 }
             }
@@ -970,11 +949,11 @@ namespace Bhp.Compiler.MSIL
             {
                 _ConvertPush(callpcount, src, to);
                 _Convert1by1(VM.OpCode.ROLL, null, to);
-
                 _Convert1by1(VM.OpCode.SYSCALL, null, to, BitConverter.GetBytes(InteropService.System_Contract_Call));
             }
             return 0;
         }
+
         private bool TryInsertMethod(BhpModule outModule, Mono.Cecil.MethodDefinition method)
         {
             var oldaddr = this.addr;
@@ -984,8 +963,7 @@ namespace Bhp.Compiler.MSIL
                 oldaddrconv[k] = addrconv[k];
             }
             var typename = method.DeclaringType.FullName;
-            ILType type;
-            if (inModule.mapType.TryGetValue(typename, out type) == false)
+            if (inModule.mapType.TryGetValue(typename, out ILType type) == false)
             {
                 type = new ILType(null, method.DeclaringType, logger);
                 inModule.mapType[typename] = type;
@@ -994,34 +972,21 @@ namespace Bhp.Compiler.MSIL
             var _method = type.methods[method.FullName];
             try
             {
-                BhpMethod nm = new BhpMethod();
                 if (method.Is_cctor())
                 {
                     CctorSubVM.Parse(_method, this.outModule);
                     //continue;
                     return false;
                 }
-                if (method.Is_cctor())
+                if (method.Is_ctor())
                 {
                     return false;
                     //continue;
                 }
-                nm._namespace = method.DeclaringType.FullName;
-                nm.name = method.FullName;
-                nm.displayName = method.Name;
-                Mono.Collections.Generic.Collection<Mono.Cecil.CustomAttribute> ca = method.CustomAttributes;
-                foreach (var attr in ca)
-                {
-                    if (attr.AttributeType.Name == "DisplayNameAttribute")
-                    {
-                        nm.displayName = (string)attr.ConstructorArguments[0].Value;
-                    }
-                }
-                nm.inSmartContract = method.DeclaringType.BaseType.Name == "SmartContract";
-                nm.isPublic = method.IsPublic;
+
+                BhpMethod nm = new BhpMethod(method);
                 this.methodLink[_method] = nm;
                 outModule.mapMethods[nm.name] = nm;
-
                 ConvertMethod(_method, nm);
                 return true;
             }
@@ -1040,6 +1005,7 @@ namespace Bhp.Compiler.MSIL
                 }
             }
         }
+
         private int _ConvertNewArr(ILMethod method, OpCode src, BhpMethod to)
         {
             var type = src.tokenType;
@@ -1091,7 +1057,7 @@ namespace Bhp.Compiler.MSIL
                 int n = method.GetNextCodeAddr(src.addr);
                 int n2 = method.GetNextCodeAddr(n);
                 int n3 = method.GetNextCodeAddr(n2);
-                int n4 = method.GetNextCodeAddr(n3);
+                _ = method.GetNextCodeAddr(n3);
 
                 if (n >= 0 && n2 >= 0 && n3 >= 0 && method.body_Codes[n].code == CodeEx.Dup && method.body_Codes[n2].code == CodeEx.Ldtoken && method.body_Codes[n3].code == CodeEx.Call)
                 {
@@ -1110,7 +1076,6 @@ namespace Bhp.Compiler.MSIL
                     var outbyte = new byte[number];
                     var skip = 0;
                     int start = n;
-                    System.Collections.Generic.Stack<int> stack = new System.Collections.Generic.Stack<int>();
                     var _code = method.body_Codes[start];
                     if (_code.code == CodeEx.Dup)//生成的setlem代码用dup
                     {
@@ -1201,12 +1166,8 @@ namespace Bhp.Compiler.MSIL
                     return skip;
                 }
             }
-
-
-
-            return 0;
-
         }
+
         private int _ConvertInitObj(OpCode src, BhpMethod to)
         {
             var type = (src.tokenUnknown as Mono.Cecil.TypeReference).Resolve();
@@ -1263,6 +1224,7 @@ namespace Bhp.Compiler.MSIL
             //_Convert1by1(VM.OpCode.DROP, null, to);
             return 0;
         }
+
         private int _ConvertNewObj(OpCode src, BhpMethod to)
         {
             var _type = (src.tokenUnknown as Mono.Cecil.MethodReference);
