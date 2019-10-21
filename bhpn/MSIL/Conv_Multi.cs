@@ -755,11 +755,8 @@ namespace Bhp.Compiler.MSIL
                 }
                 else if (src.tokenMethod == "System.UInt32 <PrivateImplementationDetails>::ComputeStringHash(System.String)")
                 {
-                    throw new Exception("not supported on bhpvm now.");
-                    // 需要Bhp.vm nuget更新以后，这个才可以放开，就可以处理 string switch了。");
-
-                    //_Convert1by1(VM.OpCode.CSHARPSTRHASH32, src, to);
-                    //return 0;
+                    // Calling the generated ComputeStringHash() in the runtime is too expensive.
+                    throw new Exception("A large 'switch' was found with 'ComputeStringHash' optimization, this optimization is not supported on bhpvm now.");
                 }
                 else if (src.tokenMethod.Contains("::op_LeftShift("))
                 {
