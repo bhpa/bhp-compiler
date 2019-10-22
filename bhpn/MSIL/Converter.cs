@@ -538,7 +538,7 @@ namespace Bhp.Compiler.MSIL
                     break;
 
                 case CodeEx.Ldnull:
-                    _ConvertPush(new byte[0], src, to);
+                    _Convert1by1(VM.OpCode.PUSHNULL, src, to);
                     break;
 
                 case CodeEx.Ldc_I4:
@@ -856,7 +856,7 @@ namespace Bhp.Compiler.MSIL
                     _Convert1by1(VM.OpCode.GT, src, to);
                     break;
                 case CodeEx.Ceq:
-                    _Convert1by1(VM.OpCode.NUMEQUAL, src, to);
+                    skipcount = _ConvertCeq(method, src, to);
                     break;
 
                 //call

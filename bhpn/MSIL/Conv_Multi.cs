@@ -1003,6 +1003,23 @@ namespace Bhp.Compiler.MSIL
             }
         }
 
+        private int _ConvertCeq(ILMethod method, OpCode src, BhpMethod to)
+        {
+            var code = to.body_Codes.Last().Value;
+            if (code.code == VM.OpCode.PUSHNULL)
+            {
+                //remove last code
+                to.body_Codes.Remove(code.addr);
+                this.addr = code.addr;
+                _Convert1by1(VM.OpCode.ISNULL, src, to);
+            }
+            else
+            {
+                _Convert1by1(VM.OpCode.NUMEQUAL, src, to);
+            }
+            return 0;
+        }
+
         private int _ConvertNewArr(ILMethod method, OpCode src, BhpMethod to)
         {
             var type = src.tokenType;
