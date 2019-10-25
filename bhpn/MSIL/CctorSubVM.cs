@@ -37,15 +37,7 @@ namespace Bhp.Compiler.MSIL
                 return null;
             }
         }
-        public static byte[] HexString2Bytes(string str)
-        {
-            byte[] outd = new byte[str.Length / 2];
-            for (var i = 0; i < str.Length / 2; i++)
-            {
-                outd[i] = byte.Parse(str.Substring(i * 2, 2), System.Globalization.NumberStyles.HexNumber);
-            }
-            return outd;
-        }
+
         public static void Parse(ILMethod from, BhpModule to)
         {
             calcStack = new Stack<object>();
@@ -191,8 +183,7 @@ namespace Bhp.Compiler.MSIL
                                         }
                                         else if (attrname == "HexToBytes")//HexString2Bytes to bytes[]
                                         {
-                                            if (text.IndexOf("0x") == 0) text = text.Substring(2);
-                                            var hex = HexString2Bytes(text);
+                                            var hex = text.HexString2Bytes();
                                             calcStack.Push(hex);
                                         }
                                         else if (attrname == "ToBigInteger")
