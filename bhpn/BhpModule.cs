@@ -1,5 +1,6 @@
 ﻿using Mono.Cecil;
 using Bhp.Compiler.MSIL;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Text;
@@ -178,15 +179,18 @@ namespace Bhp.Compiler
         public string name;
         public string displayName;
         public List<BhpParam> paramtypes = new List<BhpParam>();
-        public string returntype;
 
         public BhpEvent(ILField value)
         {
             _namespace = value.field.DeclaringType.FullName;
             name = value.field.DeclaringType.FullName + "::" + value.field.Name;
             displayName = value.displayName;
-            returntype = value.returntype;
             paramtypes = value.paramtypes;
+
+            if (value.returntype != "System.Void")
+            {
+                throw new NotSupportedException($"NEP-3 does not support return types for events. Expected: `System.Void`, Detected: `{value.returntype}`");
+            }
         }
     }
 
@@ -235,6 +239,7 @@ namespace Bhp.Compiler
             }
             return info;
         }
+
         public MyJson.JsonNode_ValueString GenJson()
         {
             string info = "" + addr.ToString("X04") + " " + code.ToString();
