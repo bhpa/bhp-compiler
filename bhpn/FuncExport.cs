@@ -3,11 +3,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace vmtool
 {
-
     public class FuncExport
     {
         static string ConvType(string _type)
@@ -64,7 +62,7 @@ namespace vmtool
 
             return "Unknown:" + _type;
         }
-        public static MyJson.JsonNode_Object Export(BhpModule module,byte[] script)
+        public static MyJson.JsonNode_Object Export(BhpModule module, byte[] script)
         {
             var sha256 = System.Security.Cryptography.SHA256.Create();
             byte[] hash256 = sha256.ComputeHash(script);
@@ -89,12 +87,12 @@ namespace vmtool
             {
                 entryPoint = mainmethod.displayName;
             }
+
             //functions
             var methods = new MyJson.JsonNode_Array();
             outjson["methods"] = methods;
 
             List<string> names = new List<string>();
-
             foreach (var function in module.mapMethods)
             {
                 var mm = function.Value;
@@ -114,7 +112,7 @@ namespace vmtool
                     methods.Add(funcsign);
                 }
                 funcsign.SetDictValue("name", function.Value.displayName);
-                if(names.Contains(function.Value.displayName))
+                if (names.Contains(function.Value.displayName))
                 {
                     throw new Exception("abi not allow same name functions");
                 }
@@ -132,7 +130,10 @@ namespace vmtool
                         item.SetDictValue("name", v.name);
                         item.SetDictValue("type", ptype);
                     }
-                }               
+                }
+
+                var rtype = ConvType(mm.returntype);
+                funcsign.SetDictValue("returnType", rtype);
             }
 
             //events
@@ -141,9 +142,7 @@ namespace vmtool
             foreach (var events in module.mapEvents)
             {
                 var mm = events.Value;
-                
                 var funcsign = new MyJson.JsonNode_Object();
-
                 eventsigns.Add(funcsign);
 
                 funcsign.SetDictValue("name", events.Value.displayName);
@@ -161,8 +160,9 @@ namespace vmtool
                         item.SetDictValue("type", ptype);
                     }
                 }
-                var rtype = ConvType(mm.returntype);
-                funcsign.SetDictValue("returnType", rtype);
+                //event do not have returntype in brc3
+                //var rtype = ConvType(mm.returntype);
+                //funcsign.SetDictValue("returntype", rtype);
             }
 
             return outjson;

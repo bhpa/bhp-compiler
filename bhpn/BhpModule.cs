@@ -13,6 +13,7 @@ namespace Bhp.Compiler
 
         public string mainMethod;
         public ConvOption option;
+        public List<CustomAttribute> attributes = new List<CustomAttribute>();
         public Dictionary<string, BhpMethod> mapMethods = new Dictionary<string, BhpMethod>();
         public Dictionary<string, BhpEvent> mapEvents = new Dictionary<string, BhpEvent>();
         public Dictionary<string, BhpField> mapFields = new Dictionary<string, BhpField>();
@@ -96,6 +97,8 @@ namespace Bhp.Compiler
         public string returntype;
         public bool isPublic = true;
         public bool inSmartContract;
+        public ILMethod method;
+        public ILType type;
         //临时变量
         public List<BhpParam> body_Variables = new List<BhpParam>();
 
@@ -146,18 +149,20 @@ namespace Bhp.Compiler
         /// Constructor
         /// </summary>
         /// <param name="method">Method</param>
-        public BhpMethod(MethodDefinition method)
+        public BhpMethod(ILMethod method)
         {
-            _namespace = method.DeclaringType.FullName;
-            name = method.FullName;
-            displayName = method.Name;
-            inSmartContract = method.DeclaringType.BaseType.Name == "SmartContract";
-            isPublic = method.IsPublic;
+            this.method = method;
+            this.type = method.type;
 
-            foreach (var attr in method.CustomAttributes)
+            foreach (var attr in method.method.CustomAttributes)
             {
                 ProcessAttribute(attr);
             }
+            _namespace = method.method.DeclaringType.FullName;
+            name = method.method.FullName;
+            displayName = method.method.Name;
+            inSmartContract = method.method.DeclaringType.BaseType.Name == "SmartContract";
+            isPublic = method.method.IsPublic;
         }
 
         private void ProcessAttribute(CustomAttribute attr)
@@ -189,7 +194,7 @@ namespace Bhp.Compiler
 
             if (value.returntype != "System.Void")
             {
-                throw new NotSupportedException($"NEP-3 does not support return types for events. Expected: `System.Void`, Detected: `{value.returntype}`");
+                throw new NotSupportedException($"BRC-3 does not support return types for events. Expected: `System.Void`, Detected: `{value.returntype}`");
             }
         }
     }

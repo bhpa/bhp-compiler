@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 
@@ -92,7 +93,7 @@ namespace Bhp.Compiler.MSIL
                         continue;
                     }
                     if (m.Value.method.Is_ctor()) continue;
-                    BhpMethod nm = new BhpMethod(m.Value.method);
+                    BhpMethod nm = new BhpMethod(m.Value);
                     this.methodLink[m.Value] = nm;
                     outModule.mapMethods[nm.name] = nm;
                 }
@@ -214,6 +215,12 @@ namespace Bhp.Compiler.MSIL
             {
                 //单一默认入口
                 logger.Log("Find entrypoint:" + mainmethod);
+            }
+
+            var attr = outModule.mapMethods.Values.Where(u => u.inSmartContract).Select(u => u.type.attributes.ToArray()).FirstOrDefault();
+            if (attr?.Length > 0)
+            {
+                outModule.attributes.AddRange(attr);
             }
 
             outModule.mainMethod = mainmethod;

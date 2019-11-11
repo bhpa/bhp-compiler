@@ -64,9 +64,15 @@ namespace Bhp.Compiler.MSIL
     {
         public Dictionary<string, ILField> fields = new Dictionary<string, ILField>();
         public Dictionary<string, ILMethod> methods = new Dictionary<string, ILMethod>();
+        public List<Mono.Cecil.CustomAttribute> attributes = new List<Mono.Cecil.CustomAttribute>();
 
         public ILType(ILModule module, Mono.Cecil.TypeDefinition type, ILogger logger)
         {
+            if (type.HasCustomAttributes && type.IsClass)
+            {
+                attributes.AddRange(type.CustomAttributes);
+            }
+
             foreach (Mono.Cecil.FieldDefinition f in type.Fields)
             {
                 this.fields.Add(f.Name, new ILField(this, f));
@@ -196,6 +202,7 @@ namespace Bhp.Compiler.MSIL
 
     public class ILMethod
     {
+        public ILType type = null;
         public string returntype;
         public List<BhpParam> paramtypes = new List<BhpParam>();
         public bool hasParam = false;
@@ -206,6 +213,7 @@ namespace Bhp.Compiler.MSIL
 
         public ILMethod(ILType type, Mono.Cecil.MethodDefinition method, ILogger logger = null)
         {
+            this.type = type;
             this.method = method;
             if (method != null)
             {
