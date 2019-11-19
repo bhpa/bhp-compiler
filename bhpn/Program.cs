@@ -21,21 +21,37 @@ namespace Bhp.Compiler
         public static void Main(string[] args)
         {
             //set console
-            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.OutputEncoding = Encoding.UTF8;
             var log = new DefLogger();
             log.Log("Bhp.Compiler.MSIL console app v" + Assembly.GetEntryAssembly().GetName().Version);
 
+            // Check argmuents
             if (args.Length == 0)
             {
-                log.Log("need one param for DLL filename.");
-                log.Log("Example:Bhpn abc.dll");
+                log.Log("You need a parameter to specify the DLL or the file name of the project.");
+                log.Log("Examples: ");
+                log.Log("  neon mySmartContract.dll");
+                log.Log("  neon mySmartContract.csproj");
+
+                Environment.Exit(-1);
                 return;
             }
 
-            string filename = args[0];
-            string onlyname = Path.GetFileNameWithoutExtension(filename);
-            string filepdb = onlyname + ".pdb";
-            var path = Path.GetDirectoryName(filename);
+            var fileInfo = new FileInfo(args[0]);
+
+            // Set current directory
+            if (!fileInfo.Exists)
+            {
+                log.Log("Could not find file " + fileInfo.FullName);
+                Environment.Exit(-1);
+                return;
+            }
+
+            Stream fs;
+            Stream fspdb;
+            var onlyname = Path.GetFileNameWithoutExtension(fileInfo.Name);
+            var path = fileInfo.Directory.FullName;
+
             if (!string.IsNullOrEmpty(path))
             {
                 try
@@ -50,26 +66,84 @@ namespace Bhp.Compiler
                 }
             }
 
+            switch (fileInfo.Extension.ToLowerInvariant())
+            {
+                case ".csproj":
+                    {
+                        // Compile csproj file
+
+                        log.Log("Compiling from csproj project");
+                        var output = Compiler.CompileCSProj(fileInfo.FullName);
+                        fs = new MemoryStream(output.Dll);
+                        fspdb = new MemoryStream(output.Pdb);
+                        break;
+                    }
+                case ".vbproj":
+                    {
+                        // Compile vbproj file
+
+                        log.Log("Compiling from vbproj project");
+                        var output = Compiler.CompileVBProj(fileInfo.FullName);
+                        fs = new MemoryStream(output.Dll);
+                        fspdb = new MemoryStream(output.Pdb);
+                        break;
+                    }
+                case ".cs":
+                    {
+                        // Compile C# files
+
+                        log.Log("Compiling from c# source");
+                        var output = Compiler.CompileCSFile(new string[] { fileInfo.FullName }, new string[0]);
+                        fs = new MemoryStream(output.Dll);
+                        fspdb = new MemoryStream(output.Pdb);
+                        break;
+                    }
+                case ".vb":
+                    {
+                        // Compile VB files
+
+                        log.Log("Compiling from VB source");
+                        var output = Compiler.CompileVBFile(new string[] { fileInfo.FullName }, new string[0]);
+                        fs = new MemoryStream(output.Dll);
+                        fspdb = new MemoryStream(output.Pdb);
+                        break;
+                    }
+                case ".dll":
+                    {
+                        string filepdb = onlyname + ".pdb";
+
+                        // Open file
+                        try
+                        {
+                            fs = fileInfo.OpenRead();
+
+                            if (File.Exists(filepdb))
+                            {
+                                fspdb = File.OpenRead(filepdb);
+                            }
+                            else
+                            {
+                                fspdb = null;
+                            }
+                        }
+                        catch (Exception err)
+                        {
+                            log.Log("Open File Error:" + err.ToString());
+                            return;
+                        }
+                        break;
+                    }
+                default:
+                    {
+                        log.Log("File format not supported by neon: " + path);
+                        Environment.Exit(-1);
+                        return;
+                    }
+
+            }
+
             ILModule mod = new ILModule(log);
-            Stream fs;
-            Stream fspdb = null;
 
-            //open file
-            try
-            {
-                fs = File.OpenRead(filename);
-
-                if (File.Exists(filepdb))
-                {
-                    fspdb = File.OpenRead(filepdb);
-                }
-
-            }
-            catch (Exception err)
-            {
-                log.Log("Open File Error:" + err.ToString());
-                return;
-            }
             //load module
             try
             {
