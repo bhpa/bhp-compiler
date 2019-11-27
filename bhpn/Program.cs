@@ -13,9 +13,9 @@ namespace Bhp.Compiler
     {
         //Console.WriteLine("helo ha:"+args[0]); //普通输出
         //Console.WriteLine("<WARN> 这是一个严重的问题。");//警告输出，黄字
-        //Console.WriteLine("<WARN|aaaa.cs(1)> 这是ee一个严重的问题。");//警告输出，带文件名行号
+        //Console.WriteLine("<WARN|aaaa.cs(1)> 这是一个严重的问题。");//警告输出，带文件名行号
         //Console.WriteLine("<ERR> 这是一个严重的问题。");//错误输出，红字
-        //Console.WriteLine("<ERR|aaaa.cs> 这是ee一个严重的问题。");//错误输出，带文件名
+        //Console.WriteLine("<ERR|aaaa.cs> 这是一个严重的问题。");//错误输出，带文件名
         //Console.WriteLine("SUCC");//输出这个表示编译成功
         //控制台输出约定了特别的语法
         public static void Main(string[] args)
@@ -30,8 +30,8 @@ namespace Bhp.Compiler
             {
                 log.Log("You need a parameter to specify the DLL or the file name of the project.");
                 log.Log("Examples: ");
-                log.Log("  neon mySmartContract.dll");
-                log.Log("  neon mySmartContract.csproj");
+                log.Log("  bhp mySmartContract.dll");
+                log.Log("  bhp mySmartContract.csproj");
 
                 Environment.Exit(-1);
                 return;
@@ -71,7 +71,6 @@ namespace Bhp.Compiler
                 case ".csproj":
                     {
                         // Compile csproj file
-
                         log.Log("Compiling from csproj project");
                         var output = Compiler.CompileCSProj(fileInfo.FullName);
                         fs = new MemoryStream(output.Dll);
@@ -81,7 +80,6 @@ namespace Bhp.Compiler
                 case ".vbproj":
                     {
                         // Compile vbproj file
-
                         log.Log("Compiling from vbproj project");
                         var output = Compiler.CompileVBProj(fileInfo.FullName);
                         fs = new MemoryStream(output.Dll);
@@ -91,7 +89,6 @@ namespace Bhp.Compiler
                 case ".cs":
                     {
                         // Compile C# files
-
                         log.Log("Compiling from c# source");
                         var output = Compiler.CompileCSFile(new string[] { fileInfo.FullName }, new string[0]);
                         fs = new MemoryStream(output.Dll);
@@ -101,7 +98,6 @@ namespace Bhp.Compiler
                 case ".vb":
                     {
                         // Compile VB files
-
                         log.Log("Compiling from VB source");
                         var output = Compiler.CompileVBFile(new string[] { fileInfo.FullName }, new string[0]);
                         fs = new MemoryStream(output.Dll);
@@ -135,7 +131,7 @@ namespace Bhp.Compiler
                     }
                 default:
                     {
-                        log.Log("File format not supported by neon: " + path);
+                        log.Log("File format not supported by bhp: " + path);
                         Environment.Exit(-1);
                         return;
                     }
@@ -158,6 +154,7 @@ namespace Bhp.Compiler
             int bSucc = 0;
             string jsonstr = null;
             BhpModule module = null;
+           
             //convert and build
             try
             {
@@ -186,6 +183,7 @@ namespace Bhp.Compiler
                 log.Log("Convert Error:" + err.ToString());
                 return;
             }
+            
             //write bytes
             try
             {
@@ -214,6 +212,7 @@ namespace Bhp.Compiler
                 log.Log("Write Bytes Error:" + err.ToString());
                 return;
             }
+
             try
             {
                 string abiname = onlyname + ".abi.json";
@@ -228,6 +227,7 @@ namespace Bhp.Compiler
                 log.Log("Write abi Error:" + err.ToString());
                 return;
             }
+
             try
             {
                 var features = module == null ? ContractFeatures.NoProperty : module.attributes
@@ -254,6 +254,7 @@ namespace Bhp.Compiler
                 log.Log("Write manifest Error:" + err.ToString());
                 return;
             }
+
             try
             {
                 fs.Dispose();
