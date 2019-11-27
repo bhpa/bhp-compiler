@@ -92,12 +92,10 @@ namespace Bhp.Compiler
             }
 
             // Compile csproj source
-
             var reader = XmlReader.Create(filename, new XmlReaderSettings() { XmlResolver = null });
             var projDefinition = XDocument.Load(reader);
 
             // Detect references
-
             references = projDefinition
                .Element("Project")
                .Elements("ItemGroup")
@@ -106,7 +104,6 @@ namespace Bhp.Compiler
                .ToList();
 
             // Detect hints
-
             var refs = projDefinition
                 .Element("Project")
                 .Elements("ItemGroup")
@@ -121,7 +118,6 @@ namespace Bhp.Compiler
             }
 
             // Detect files
-
             files = projDefinition
                .Element("Project")
                .Elements("ItemGroup")

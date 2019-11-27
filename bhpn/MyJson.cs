@@ -6,7 +6,6 @@ namespace Bhp.Compiler
 {
     public class MyJson
     {
-
         public static IJsonNode Parse(string json)
         {
             try
@@ -46,11 +45,13 @@ namespace Bhp.Compiler
                 return new JsonNode_ValueNumber();
             }
         }
+
         public class ScanObj
         {
             public string json;
             public int seed;
         }
+
         internal static IJsonNode Scan(ScanObj scan)
         {
             for (int i = 0; i < scan.json.Length; i++)
@@ -65,6 +66,7 @@ namespace Bhp.Compiler
             }
             return null;
         }
+
         public enum jsontype
         {
             Value_Number,
@@ -72,6 +74,7 @@ namespace Bhp.Compiler
             Array,
             Object,
         }
+
         public interface IJsonNode
         {
             jsontype type
@@ -134,41 +137,49 @@ namespace Bhp.Compiler
             {
 
             }
+
             public JsonNode_ValueNumber(double value)
             {
                 this.value = value;
                 this.isBool = false;
             }
+
             public JsonNode_ValueNumber(bool value)
             {
                 this.value = value ? 1 : 0;
                 this.isBool = true;
             }
+
             public double value
             {
                 get;
                 set;
             }
+
             public bool isBool
             {
                 get;
                 private set;
             }
+
             public bool isNull
             {
                 get;
                 private set;
             }
+
             public void SetNull()
             {
                 this.isNull = true;
                 this.isBool = false;
             }
+
             public void SetBool(bool v)
             {
                 this.value = v ? 1 : 0;
                 this.isBool = true;
             }
+
             public override string ToString()
             {
                 if (isBool)
@@ -192,27 +203,32 @@ namespace Bhp.Compiler
                     return jsontype.Value_Number;
                 }
             }
+
             public void ConvertToString(StringBuilder sb)
             {
                 sb.Append(ToString());
             }
+
             public void ConvertToStringWithFormat(StringBuilder sb, int spacesub)
             {
                 //for (int i = 0; i < space; i++)
                 //    sb.Append(' ');
                 ConvertToString(sb);
             }
+
             public void ConvertToStringPhp(StringBuilder sb)
             {
 
                 sb.Append(ToString());
             }
+
             public void ConvertToStringPhpWithFormat(StringBuilder sb, int spacesub)
             {
                 //for (int i = 0; i < space; i++)
                 //    sb.Append(' ');
                 ConvertToStringPhp(sb);
             }
+
             public void Scan(MyJson.ScanObj scan)
             {
                 string number = "";
@@ -252,18 +268,22 @@ namespace Bhp.Compiler
                     isBool = false;
                 }
             }
+
             public static implicit operator double(JsonNode_ValueNumber m)
             {
                 return m.value;
             }
+
             public static implicit operator float(JsonNode_ValueNumber m)
             {
                 return (float)m.value;
             }
+
             public static implicit operator int(JsonNode_ValueNumber m)
             {
                 return (int)m.value;
             }
+
             public static implicit operator uint(JsonNode_ValueNumber m)
             {
                 return (uint)m.value;
@@ -273,7 +293,6 @@ namespace Bhp.Compiler
             {
                 return (uint)m.value != 0;
             }
-
 
             public IJsonNode Get(string path)
             {
@@ -414,7 +433,6 @@ namespace Bhp.Compiler
                 throw new NotImplementedException();
             }
 
-
             public bool HaveDictItem(string key)
             {
                 throw new NotImplementedException();
@@ -425,21 +443,25 @@ namespace Bhp.Compiler
                 throw new NotImplementedException();
             }
         }
+
         public class JsonNode_ValueString : IJsonNode
         {
             public JsonNode_ValueString()
             {
 
             }
+
             public JsonNode_ValueString(string value)
             {
                 this.value = value;
             }
+
             public string value
             {
                 get;
                 set;
             }
+
             public override string ToString()
             {
                 return value;
@@ -452,6 +474,7 @@ namespace Bhp.Compiler
                     return jsontype.Value_String;
                 }
             }
+
             public void ConvertToString(StringBuilder sb)
             {
                 sb.Append('\"');
@@ -463,12 +486,14 @@ namespace Bhp.Compiler
                 }
                 sb.Append('\"');
             }
+
             public void ConvertToStringWithFormat(StringBuilder sb, int spacesub)
             {
                 //for (int i = 0; i < space; i++)
                 //    sb.Append(' ');
                 ConvertToString(sb);
             }
+
             public void ConvertToStringPhp(StringBuilder sb)
             {
                 sb.Append('\"');
@@ -480,12 +505,14 @@ namespace Bhp.Compiler
                 }
                 sb.Append('\"');
             }
+
             public void ConvertToStringPhpWithFormat(StringBuilder sb, int spacesub)
             {
                 //for (int i = 0; i < space; i++)
                 //    sb.Append(' ');
                 ConvertToStringPhp(sb);
             }
+
             public void Scan(MyJson.ScanObj scan)
             {
                 string _value = "";
@@ -519,15 +546,12 @@ namespace Bhp.Compiler
                 return m.value;
             }
 
-
-
             public IJsonNode Get(string path)
             {
                 if (string.IsNullOrEmpty(path)) return this;
 
                 return null;
             }
-
 
             public IJsonNode GetArrayItem(int index)
             {
@@ -649,7 +673,6 @@ namespace Bhp.Compiler
                 throw new NotImplementedException();
             }
 
-
             public bool HaveDictItem(string key)
             {
                 throw new NotImplementedException();
@@ -667,12 +690,14 @@ namespace Bhp.Compiler
             {
                 get { return jsontype.Array; }
             }
+
             public override string ToString()
             {
                 StringBuilder sb = new StringBuilder();
                 ConvertToString(sb);
                 return sb.ToString();
             }
+
             public void ConvertToString(StringBuilder sb)
             {
                 sb.Append('[');
@@ -684,6 +709,7 @@ namespace Bhp.Compiler
                 }
                 sb.Append(']');
             }
+
             public void ConvertToStringWithFormat(StringBuilder sb, int spacesub)
             {
                 for (int _i = 0; _i < spacesub; _i++)
@@ -712,6 +738,7 @@ namespace Bhp.Compiler
                     sb.Append(' ');
                 sb.Append(']');
             }
+
             public void ConvertToStringPhp(StringBuilder sb)
             {
                 sb.Append("Array(");
@@ -723,6 +750,7 @@ namespace Bhp.Compiler
                 }
                 sb.Append(')');
             }
+
             public void ConvertToStringPhpWithFormat(StringBuilder sb, int spacesub)
             {
                 //for (int _i = 0; _i < space; _i++)
@@ -744,6 +772,7 @@ namespace Bhp.Compiler
                     sb.Append(' ');
                 sb.Append(')');
             }
+
             public void Scan(MyJson.ScanObj scan)
             {
                 for (int i = scan.seed + 1; i < scan.json.Length; i++)
@@ -764,7 +793,6 @@ namespace Bhp.Compiler
                         i = scan.seed - 1;
                         this.Add(node);
                     }
-
                 }
             }
 
@@ -810,10 +838,7 @@ namespace Bhp.Compiler
                 }
 
                 return -1;
-
-
             }
-
 
             public IJsonNode Get(string path)
             {
@@ -961,18 +986,21 @@ namespace Bhp.Compiler
                 return this.Count;
             }
         }
+
         public class JsonNode_Object : Dictionary<string, IJsonNode>, IJsonNode
         {
             public jsontype type
             {
                 get { return jsontype.Object; }
             }
+
             public override string ToString()
             {
                 StringBuilder sb = new StringBuilder();
                 ConvertToString(sb);
                 return sb.ToString();
             }
+
             public void ConvertToString(StringBuilder sb)
             {
                 sb.Append('{');
@@ -988,6 +1016,7 @@ namespace Bhp.Compiler
                 }
                 sb.Append('}');
             }
+
             public void ConvertToStringWithFormat(StringBuilder sb, int spacesub)
             {
                 for (int _i = 0; _i < spacesub; _i++)
@@ -1015,6 +1044,7 @@ namespace Bhp.Compiler
                     sb.Append(' ');
                 sb.Append('}');
             }
+
             public void ConvertToStringPhp(StringBuilder sb)
             {
                 sb.Append("Array(");
@@ -1030,6 +1060,7 @@ namespace Bhp.Compiler
                 }
                 sb.Append(')');
             }
+
             public void ConvertToStringPhpWithFormat(StringBuilder sb, int spacesub)
             {
                 //for (int _i = 0; _i < space; _i++)
@@ -1128,6 +1159,7 @@ namespace Bhp.Compiler
 
                 }
             }
+
             public string GetFirstKey01(string path, int start, out string nextpath)
             {
                 for (int i = start + 1; i < path.Length; i++)
@@ -1143,6 +1175,7 @@ namespace Bhp.Compiler
                 nextpath = null;
                 return null;
             }
+
             public string GetFirstKey02(string path, int start, out string nextpath)
             {
                 string _path = null;
@@ -1170,6 +1203,7 @@ namespace Bhp.Compiler
                 nextpath = null;
                 return null;
             }
+
             public string GetFirstKey(string path, out string nextpath)
             {
                 nextpath = null;
@@ -1206,9 +1240,8 @@ namespace Bhp.Compiler
                 }
 
                 return null;
-
-
             }
+
             public IJsonNode Get(string path)
             {
                 if (path.Length == 0) return this;
@@ -1222,7 +1255,6 @@ namespace Bhp.Compiler
                 {
                     return null;
                 }
-
             }
 
             public IJsonNode GetArrayItem(int index)
@@ -1356,9 +1388,5 @@ namespace Bhp.Compiler
                 throw new NotImplementedException();
             }
         }
-
-
-
-
     }
 }

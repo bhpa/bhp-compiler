@@ -383,6 +383,5 @@ namespace Bhp.Compiler.MSIL
             _Insert1(VM.OpCode.FROMALTSTACK, "endcode", to);
             _Insert1(VM.OpCode.DROP, "", to);
         }
-
     }
 }
