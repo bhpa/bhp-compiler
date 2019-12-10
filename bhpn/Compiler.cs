@@ -42,7 +42,7 @@ namespace Bhp.Compiler
 
                     if (!result.Success)
                     {
-                        throw new ArgumentException();
+                        throw new ArgumentException(string.Join(Environment.NewLine, result.Diagnostics.Select(u => u.ToString())));
                     }
 
                     streamDll.Position = 0;
@@ -167,6 +167,7 @@ namespace Bhp.Compiler
             var refs = new List<MetadataReference>(new MetadataReference[]
             {
                 MetadataReference.CreateFromFile(Path.Combine(coreDir, "mscorlib.dll")),
+                MetadataReference.CreateFromFile(Path.Combine(coreDir, "netstandard.dll")),
                 MetadataReference.CreateFromFile(Path.Combine(coreDir, "System.Runtime.dll")),
                 MetadataReference.CreateFromFile(Path.Combine(coreDir, "System.Runtime.Numerics.dll")),
                 MetadataReference.CreateFromFile(typeof(System.ComponentModel.DisplayNameAttribute).Assembly.Location),
