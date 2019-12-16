@@ -17,7 +17,8 @@ namespace Bhp.Compiler
         public Dictionary<string, BhpMethod> mapMethods = new Dictionary<string, BhpMethod>();
         public Dictionary<string, BhpEvent> mapEvents = new Dictionary<string, BhpEvent>();
         public Dictionary<string, BhpField> mapFields = new Dictionary<string, BhpField>();
-        public Dictionary<string, object> staticfields = new Dictionary<string, object>();
+        public Dictionary<string, object> staticfieldsWithConstValue = new Dictionary<string, object>();
+        public List<ILMethod> staticfieldsCctor = new List<ILMethod>();
         public SortedDictionary<int, BhpCode> total_Codes = new SortedDictionary<int, BhpCode>();
 
         public byte[] Build()

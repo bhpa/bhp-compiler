@@ -227,11 +227,12 @@ namespace Bhp.Compiler.MSIL
 
         private void _insertSharedStaticVarCode(BhpMethod to)
         {
+            //insert init constvalue part
             _InsertPush(this.outModule.mapFields.Count, "static var", to);
             _Insert1(VM.OpCode.NEWARRAY, "", to);
             _Insert1(VM.OpCode.TOALTSTACK, "", to);
 
-            foreach (var defvar in this.outModule.staticfields)
+            foreach (var defvar in this.outModule.staticfieldsWithConstValue)
             {
                 if (this.outModule.mapFields.TryGetValue(defvar.Key, out BhpField field))
                 {
@@ -274,13 +275,18 @@ namespace Bhp.Compiler.MSIL
                     }
                     else
                     {
-                        throw new Exception("not support type _insertSharedStaticVarCode\r\n   in: " + to.name + "\r\n");
+                        //no need to init null
+                        _Convert1by1(VM.OpCode.PUSHNULL, null, to);
                     }
                     #endregion
                     _Insert1(VM.OpCode.SETITEM, "", to);
                 }
             }
-
+            //insert code part
+            foreach (var cctor in this.outModule.staticfieldsCctor)
+            {
+                FillMethod(cctor, to, false);
+            }
         }
 
         private void _insertBeginCode(ILMethod from, BhpMethod to)
