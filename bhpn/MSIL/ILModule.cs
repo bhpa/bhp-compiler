@@ -20,14 +20,14 @@ namespace Bhp.Compiler.MSIL
         public void LoadModule(System.IO.Stream dllStream, System.IO.Stream pdbStream)
         {
             this.module = Mono.Cecil.ModuleDefinition.ReadModule(dllStream);
-            //#if WITHPDB
+//#if WITHPDB
             if (pdbStream != null)
             {
                 var debugInfoLoader = new Mono.Cecil.Pdb.PdbReaderProvider();
 
                 module.ReadSymbols(debugInfoLoader.GetSymbolReader(module, pdbStream));
             }
-            //#endif
+//#endif
             if (module.HasAssemblyReferences)
             {
                 foreach (var ar in module.AssemblyReferences)
@@ -55,24 +55,20 @@ namespace Bhp.Compiler.MSIL
 
                         }
                     }
+
                 }
             }
         }
-    }
 
+    }
     public class ILType
     {
+        Mono.Cecil.TypeDefinition type;
         public Dictionary<string, ILField> fields = new Dictionary<string, ILField>();
         public Dictionary<string, ILMethod> methods = new Dictionary<string, ILMethod>();
-        public List<Mono.Cecil.CustomAttribute> attributes = new List<Mono.Cecil.CustomAttribute>();
-
         public ILType(ILModule module, Mono.Cecil.TypeDefinition type, ILogger logger)
         {
-            if (type.HasCustomAttributes && type.IsClass)
-            {
-                attributes.AddRange(type.CustomAttributes);
-            }
-
+            this.type = type;
             foreach (Mono.Cecil.FieldDefinition f in type.Fields)
             {
                 this.fields.Add(f.Name, new ILField(this, f));
@@ -96,18 +92,11 @@ namespace Bhp.Compiler.MSIL
                 }
             }
         }
+
     }
 
     public class ILField
     {
-        public bool isEvent = false;
-        public string type;
-        public string name;
-        public string displayName;
-        public string returntype;
-        public List<BhpParam> paramtypes = new List<BhpParam>();
-        public Mono.Cecil.FieldDefinition field;
-
         public ILField(ILType type, Mono.Cecil.FieldDefinition field)
         {
             this.type = field.FieldType.FullName;
@@ -127,7 +116,8 @@ namespace Bhp.Compiler.MSIL
                             this.displayName = (string)attr.ConstructorArguments[0].Value;
                         }
                     }
-                    if (!(field.FieldType is Mono.Cecil.TypeDefinition eventtype))
+                    var eventtype = field.FieldType as Mono.Cecil.TypeDefinition;
+                    if (eventtype == null)
                     {
                         try
                         {
@@ -156,8 +146,9 @@ namespace Bhp.Compiler.MSIL
                                         }
                                     }
                                 }
-                                catch
+                                catch (Exception err)
                                 {
+
                                 }
                                 foreach (var src in m.Parameters)
                                 {
@@ -180,11 +171,13 @@ namespace Bhp.Compiler.MSIL
                                                 }
                                             }
                                         }
-                                        catch
+                                        catch (Exception err)
                                         {
+
                                         }
                                     }
                                     this.paramtypes.Add(new BhpParam(src.Name, paramtype));
+
                                 }
                             }
                         }
@@ -193,27 +186,23 @@ namespace Bhp.Compiler.MSIL
                 }
             }
         }
-
+        public bool isEvent = false;
+        public string type;
+        public string name;
+        public string displayName;
+        public string returntype;
+        public List<BhpParam> paramtypes = new List<BhpParam>();
         public override string ToString()
         {
             return type;
         }
+        public Mono.Cecil.FieldDefinition field;
     }
 
     public class ILMethod
     {
-        public ILType type = null;
-        public string returntype;
-        public List<BhpParam> paramtypes = new List<BhpParam>();
-        public bool hasParam = false;
-        public Mono.Cecil.MethodDefinition method;
-        public List<BhpParam> body_Variables = new List<BhpParam>();
-        public SortedDictionary<int, OpCode> body_Codes = new SortedDictionary<int, OpCode>();
-        public string fail = null;
-
         public ILMethod(ILType type, Mono.Cecil.MethodDefinition method, ILogger logger = null)
         {
-            this.type = type;
             this.method = method;
             if (method != null)
             {
@@ -235,8 +224,9 @@ namespace Bhp.Compiler.MSIL
                                 }
                             }
                         }
-                        catch
+                        catch (Exception err)
                         {
+
                         }
                         this.paramtypes.Add(new BhpParam(p.Name, paramtype));
                     }
@@ -255,11 +245,9 @@ namespace Bhp.Compiler.MSIL
                     for (int i = 0; i < bodyNative.Instructions.Count; i++)
                     {
                         var code = bodyNative.Instructions[i];
-                        OpCode c = new OpCode
-                        {
-                            code = (CodeEx)(int)code.OpCode.Code,
-                            addr = code.Offset
-                        };
+                        OpCode c = new OpCode();
+                        c.code = (CodeEx)(int)code.OpCode.Code;
+                        c.addr = code.Offset;
 
                         var sp = method.DebugInformation.GetSequencePoint(code);
                         if (sp != null)
@@ -274,6 +262,13 @@ namespace Bhp.Compiler.MSIL
             }
         }
 
+        public string returntype;
+        public List<BhpParam> paramtypes = new List<BhpParam>();
+        public bool hasParam = false;
+        public Mono.Cecil.MethodDefinition method;
+        public List<BhpParam> body_Variables = new List<BhpParam>();
+        public SortedDictionary<int, OpCode> body_Codes = new SortedDictionary<int, OpCode>();
+        public string fail = null;
         public int GetNextCodeAddr(int srcaddr)
         {
             bool bskip = false;
@@ -519,6 +514,33 @@ namespace Bhp.Compiler.MSIL
 
     public class OpCode
     {
+        public override string ToString()
+        {
+            var info = "IL_" + addr.ToString("X04") + " " + code + " ";
+            if (this.tokenValueType == TokenValueType.Method)
+                info += tokenMethod;
+            if (this.tokenValueType == TokenValueType.String)
+                info += tokenStr;
+
+            if (debugline >= 0)
+            {
+                info += "(" + debugline + ")";
+            }
+            return info;
+        }
+        public enum TokenValueType
+        {
+            Nothing,
+            Addr,//地址
+            AddrArray,
+            String,
+            Type,
+            Field,
+            Method,
+            I32,
+            I64,
+            OTher,
+        }
         public TokenValueType tokenValueType = TokenValueType.Nothing;
         public int addr;
         public CodeEx code;
@@ -536,36 +558,6 @@ namespace Bhp.Compiler.MSIL
         public float tokenR32;
         public double tokenR64;
         public string tokenStr;
-
-        public override string ToString()
-        {
-            var info = "IL_" + addr.ToString("X04") + " " + code + " ";
-            if (this.tokenValueType == TokenValueType.Method)
-                info += tokenMethod;
-            if (this.tokenValueType == TokenValueType.String)
-                info += tokenStr;
-
-            if (debugline >= 0)
-            {
-                info += "(" + debugline + ")";
-            }
-            return info;
-        }
-
-        public enum TokenValueType
-        {
-            Nothing,
-            Addr,//地址
-            AddrArray,
-            String,
-            Type,
-            Field,
-            Method,
-            I32,
-            I64,
-            OTher,
-        }
-
         public void InitToken(object _p)
         {
             this.tokenUnknown = _p;
@@ -796,4 +788,5 @@ namespace Bhp.Compiler.MSIL
             }
         }
     }
+
 }

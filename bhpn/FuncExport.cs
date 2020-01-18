@@ -3,9 +3,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace vmtool
 {
+
     public class FuncExport
     {
         static string ConvType(string _type)
@@ -62,8 +64,7 @@ namespace vmtool
 
             return "Unknown:" + _type;
         }
-
-        public static MyJson.JsonNode_Object Export(BhpModule module, byte[] script)
+        public static MyJson.JsonNode_Object Export(BhpModule module,byte[] script)
         {
             var sha256 = System.Security.Cryptography.SHA256.Create();
             byte[] hash256 = sha256.ComputeHash(script);
@@ -82,18 +83,19 @@ namespace vmtool
             outjson.SetDictValue("hash", sb.ToString());
 
             //entrypoint
-            var entryPoint = "Main";
+            outjson.SetDictValue("entrypoint", "Main");
             var mainmethod = module.mapMethods[module.mainMethod];
             if (mainmethod != null)
             {
-                entryPoint = mainmethod.displayName;
+                var name = mainmethod.displayName;
+                outjson.SetDictValue("entrypoint", name);
             }
-
             //functions
-            var methods = new MyJson.JsonNode_Array();
-            outjson["methods"] = methods;
+            var funcsigns = new MyJson.JsonNode_Array();
+            outjson["functions"] = funcsigns;
 
             List<string> names = new List<string>();
+
             foreach (var function in module.mapMethods)
             {
                 var mm = function.Value;
@@ -101,19 +103,18 @@ namespace vmtool
                     continue;
                 if (mm.isPublic == false)
                     continue;
-
+                var ps = mm.name.Split(new char[] { ' ', '(' }, StringSplitOptions.RemoveEmptyEntries);
                 var funcsign = new MyJson.JsonNode_Object();
-                if (function.Value.displayName == entryPoint)
+
+                funcsigns.Add(funcsign);
+                var funcname = ps[1];
+                if (funcname.IndexOf("::") > 0)
                 {
-                    // This is the entryPoint
-                    outjson.SetDictValue("entryPoint", funcsign);
-                }
-                else
-                {
-                    methods.Add(funcsign);
+                    var sps = funcname.Split(new string[] { "::" }, StringSplitOptions.RemoveEmptyEntries);
+                    funcname = sps.Last();
                 }
                 funcsign.SetDictValue("name", function.Value.displayName);
-                if (names.Contains(function.Value.displayName))
+                if(names.Contains(function.Value.displayName))
                 {
                     throw new Exception("abi not allow same name functions");
                 }
@@ -134,7 +135,7 @@ namespace vmtool
                 }
 
                 var rtype = ConvType(mm.returntype);
-                funcsign.SetDictValue("returnType", rtype);
+                funcsign.SetDictValue("returntype", rtype);
             }
 
             //events
@@ -143,7 +144,10 @@ namespace vmtool
             foreach (var events in module.mapEvents)
             {
                 var mm = events.Value;
+
+                var ps = mm.name.Split(new char[] { ' ', '(' }, StringSplitOptions.RemoveEmptyEntries);
                 var funcsign = new MyJson.JsonNode_Object();
+
                 eventsigns.Add(funcsign);
 
                 funcsign.SetDictValue("name", events.Value.displayName);
@@ -161,9 +165,8 @@ namespace vmtool
                         item.SetDictValue("type", ptype);
                     }
                 }
-                //event do not have returntype in brc3
-                //var rtype = ConvType(mm.returntype);
-                //funcsign.SetDictValue("returntype", rtype);
+                var rtype = ConvType(mm.returntype);
+                funcsign.SetDictValue("returntype", rtype);
             }
 
             return outjson;

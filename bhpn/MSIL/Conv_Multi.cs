@@ -1,8 +1,9 @@
-using Bhp.SmartContract;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Security.Cryptography;
+using System.Globalization;
 
 namespace Bhp.Compiler.MSIL
 {
@@ -13,6 +14,7 @@ namespace Bhp.Compiler.MSIL
     {
         private void _ConvertStLoc(ILMethod method, OpCode src, BhpMethod to, int pos)
         {
+
             //get array
             //_Convert1by1(VM.OpCode.FROMALTSTACK, src, to);
             //_Convert1by1(VM.OpCode.DUP, null, to);
@@ -28,6 +30,7 @@ namespace Bhp.Compiler.MSIL
 
             _Convert1by1(VM.OpCode.SETITEM, null, to);
 
+
             //_Convert1by1(VM.OpCode.CLONESTRUCTONLY, src, to);
             ////push d
             //var c = _Convert1by1(VM.OpCode.DEPTH, null, to);
@@ -36,6 +39,7 @@ namespace Bhp.Compiler.MSIL
             //    c.debugcode = "from StLoc -> 6 code";
             //    c.debugline = 0;
             //}
+
 
             ////_Convert1by1(VM.ScriptOp.OP_DUP, src, to);
             ////push n
@@ -67,11 +71,12 @@ namespace Bhp.Compiler.MSIL
             //get i
             _ConvertPush(pos + method.paramtypes.Count, null, to);//翻转取参数顺序
             _Convert1by1(VM.OpCode.PICKITEM, null, to);
-        }
 
+
+        }
         private void _ConvertLdLocA(ILMethod method, OpCode src, BhpMethod to, int pos)
-        {
-            //这有两种情况，我们需要先判断这个引用地址是拿出来干嘛的
+        {//这有两种情况，我们需要先判断这个引用地址是拿出来干嘛的
+
             var n1 = method.body_Codes[method.GetNextCodeAddr(src.addr)];
             var n2 = method.body_Codes[method.GetNextCodeAddr(n1.addr)];
             if (n1.code == CodeEx.Initobj)//初始化结构体，必须给引用地址
@@ -88,7 +93,6 @@ namespace Bhp.Compiler.MSIL
                 _ConvertLdLoc(method, src, to, pos);
             }
         }
-
         private void _ConvertCastclass(ILMethod method, OpCode src, BhpMethod to)
         {
             var type = src.tokenUnknown as Mono.Cecil.TypeReference;
@@ -112,7 +116,6 @@ namespace Bhp.Compiler.MSIL
 
             }
         }
-
         private void _ConvertLdArg(ILMethod method, OpCode src, BhpMethod to, int pos)
         {
             try
@@ -170,7 +173,6 @@ namespace Bhp.Compiler.MSIL
             ////pick
             //_Convert1by1(VM.OpCode.PICK, null, to);
         }
-
         private void _ConvertStArg(OpCode src, BhpMethod to, int pos)
         {
             //get array
@@ -199,9 +201,13 @@ namespace Bhp.Compiler.MSIL
                         {
                             var type = attr.ConstructorArguments[0].Type;
                             var value = (string)attr.ConstructorArguments[0].Value;
+
                             //dosth
                             name = value;
                             return true;
+
+
+
                         }
                         //if(attr.t)
                     }
@@ -229,10 +235,13 @@ namespace Bhp.Compiler.MSIL
 
                         try
                         {
-                            hash = hashstr.HexString2Bytes();
-                            if (hash.Length != 20)
-                                throw new Exception("Wrong hash:" + hashstr);
-
+                            hash = new byte[20];
+                            if (hashstr.Length < 40)
+                                throw new Exception("hash too short:" + hashstr);
+                            for (var i = 0; i < 20; i++)
+                            {
+                                hash[i] = byte.Parse(hashstr.Substring(i * 2, 2), System.Globalization.NumberStyles.HexNumber);
+                            }
                             //string hexhash 需要反序
                             hash = hash.Reverse().ToArray();
                             return true;
@@ -244,7 +253,9 @@ namespace Bhp.Compiler.MSIL
                     }
                     else
                     {
-                        if (!(a.Value is Mono.Cecil.CustomAttributeArgument[] list) || list.Length < 20)
+                        var list = a.Value as Mono.Cecil.CustomAttributeArgument[];
+
+                        if (list == null || list.Length < 20)
                         {
                             throw new Exception("hash too short.");
                         }
@@ -258,21 +269,23 @@ namespace Bhp.Compiler.MSIL
                         //dosth
                         return true;
                     }
+
+
+
                 }
                 //if(attr.t)
             }
-
             hash = null;
             return false;
-        }
 
+
+        }
         public bool IsNonCall(Mono.Cecil.MethodDefinition defs)
         {
             if (defs == null)
             {
                 return false;
             }
-
             foreach (var attr in defs.CustomAttributes)
             {
                 if (attr.AttributeType.Name == "NonemitAttribute")
@@ -374,8 +387,12 @@ namespace Bhp.Compiler.MSIL
             }
             else
             {
+                opcodes = null;
+                opdata = null;
+
                 // OpCodeAttribute/SyscallAttribute together with different attributes, cannot mix!
-                throw new Exception("Bhpmachine Cannot mix OpCode/Syscall/Script attributes with others!");
+                throw new Exception("bhpmachine Cannot mix OpCode/Syscall/Script attributes with others!");
+                return false;
             }
         }
 
@@ -387,17 +404,22 @@ namespace Bhp.Compiler.MSIL
                     {
                         return false;
                     }
+
                     foreach (var attr in defs.CustomAttributes)
                     {
                         if (attr.AttributeType.Name == "OpCodeAttribute")
                         {
+
                             var type = attr.ConstructorArguments[0].Type;
+
                             Mono.Cecil.CustomAttributeArgument[] val = (Mono.Cecil.CustomAttributeArgument[])attr.ConstructorArguments[0].Value;
+
                             opcodes = new VM.OpCode[val.Length];
                             for (var j = 0; j < val.Length; j++)
                             {
                                 opcodes[j] = ((VM.OpCode)(byte)val[j].Value);
                             }
+
                             return true;
                         }
                         //if(attr.t)
@@ -449,7 +471,6 @@ namespace Bhp.Compiler.MSIL
             name = "Notify";
             return false;
         }
-
         private int _ConvertCall(OpCode src, BhpMethod to)
         {
             Mono.Cecil.MethodReference refs = src.tokenUnknown as Mono.Cecil.MethodReference;
@@ -463,14 +484,13 @@ namespace Bhp.Compiler.MSIL
             string[] calldata = null;
 
             Mono.Cecil.MethodDefinition defs = null;
-            Exception defError = null;
             try
             {
                 defs = refs.Resolve();
             }
-            catch (Exception err)
+            catch
             {
-                defError = err;
+
             }
 
             if (IsNonCall(defs))
@@ -734,7 +754,7 @@ namespace Bhp.Compiler.MSIL
                 }
                 else if (src.tokenMethod == "System.String System.String::Substring(System.Int32)")
                 {
-                    throw new Exception("Bhpmachine cant use this call,please use  .SubString(1,2) with 2 params.");
+                    throw new Exception("bhpmachine cant use this call,please use  .SubString(1,2) with 2 params.");
                 }
                 else if (src.tokenMethod == "System.String System.Char::ToString()")
                 {
@@ -756,19 +776,11 @@ namespace Bhp.Compiler.MSIL
                 }
                 else if (src.tokenMethod == "System.UInt32 <PrivateImplementationDetails>::ComputeStringHash(System.String)")
                 {
-                    // Calling the generated ComputeStringHash() in the runtime is too expensive.
+                    throw new Exception("not supported on bhpvm now.");
+                    // 需要Bhp.vm nuget更新以后，这个才可以放开，就可以处理 string switch了。");
 
-                    throw new Exception("A large 'switch' was found with 'ComputeStringHash' optimization, this optimization is not supported on Bhpvm now.");
-                }
-                else if (src.tokenMethod.Contains("::op_LeftShift("))
-                {
-                    _Convert1by1(VM.OpCode.SHL, src, to);
-                    return 0;
-                }
-                else if (src.tokenMethod.Contains("::op_RightShift("))
-                {
-                    _Convert1by1(VM.OpCode.SHR, src, to);
-                    return 0;
+                    //_Convert1by1(VM.OpCode.CSHARPSTRHASH32, src, to);
+                    //return 0;
                 }
                 else
                 {
@@ -778,15 +790,6 @@ namespace Bhp.Compiler.MSIL
 
             if (calltype == 0)
             {
-                if (defs == null && defError != null)
-                {
-                    if (defError is Mono.Cecil.AssemblyResolutionException dllError)
-                    {
-                        logger.Log("<Error>Miss a Symbol in :" + dllError.AssemblyReference.FullName);
-                        logger.Log("<Error>Check DLLs for contract.");
-                    }
-                    throw defError;
-                }
                 //之前的所有尝试都无效，那也不一定是个不存在的函数，有可能在别的模块里
                 if (TryInsertMethod(outModule, defs))
                 {
@@ -859,14 +862,27 @@ namespace Bhp.Compiler.MSIL
                     }
                 }
             }
-
             if (calltype == 1)
             {
-                var c = _Convert1by1(VM.OpCode.CALL, null, to, new byte[] { 5, 0 });
-                c.needfixfunc = true;
-                c.srcfunc = src.tokenMethod;
+                if (this.outModule.option.useBrc8)
+                {
+                    byte _pcount = (byte)defs.Parameters.Count;
+                    byte _rvcount = (byte)(defs.ReturnType.FullName == "System.Void" ? 0 : 1);
+
+                    var c = _Convert1by1(VM.OpCode.CALL_I, null, to, new byte[] { _rvcount, _pcount, 0, 0 });
+                    c.needfixfunc = true;
+                    c.srcfunc = src.tokenMethod;
+
+                }
+                else
+                {
+                    var c = _Convert1by1(VM.OpCode.CALL, null, to, new byte[] { 5, 0 });
+                    c.needfixfunc = true;
+                    c.srcfunc = src.tokenMethod;
+                }
                 return 0;
             }
+
             else if (calltype == 2)
             {
                 _Convert1by1(callcodes[0], src, to, Helper.OpDataToBytes(calldata[0]));
@@ -878,7 +894,7 @@ namespace Bhp.Compiler.MSIL
                             byte[] bytes = null;
                             if (this.outModule.option.useSysCallInteropHash)
                             {
-                                //now Bhpvm use ineropMethod hash for syscall.
+                                //now bhpvm use ineropMethod hash for syscall.
                                 bytes = BitConverter.GetBytes(callname.ToInteropMethodHash());
                             }
                             else
@@ -903,11 +919,23 @@ namespace Bhp.Compiler.MSIL
                     {
                         //if(isHex)
                         //{
-                        //    throw new Exception("Bhpmachine OpCodeAttribute field OpData currently supports SYSCALL only with plain non-empty text (not hex)!");
+                        //    throw new Exception("bhpmachine OpCodeAttribute field OpData currently supports SYSCALL only with plain non-empty text (not hex)!");
                         //}
 
-                        byte[] bytes = BitConverter.GetBytes(calldata[j].ToInteropMethodHash());
-                        _Convert1by1(VM.OpCode.SYSCALL, null, to, bytes);
+                        byte[] bytes = null;
+                        if (this.outModule.option.useSysCallInteropHash)
+                        {
+                            bytes = BitConverter.GetBytes(calldata[j].ToInteropMethodHash());
+                        }
+                        else
+                        {
+                            bytes = System.Text.Encoding.UTF8.GetBytes(calldata[j]);
+                            if (bytes.Length > 252) throw new Exception("string is to long");
+                        }
+                        byte[] outbytes = new byte[bytes.Length + 1];
+                        outbytes[0] = (byte)bytes.Length;
+                        Array.Copy(bytes, 0, outbytes, 1, bytes.Length);
+                        _Convert1by1(VM.OpCode.SYSCALL, null, to, outbytes);
                     }
                     else
                     {
@@ -920,8 +948,29 @@ namespace Bhp.Compiler.MSIL
             }
             else if (calltype == 4)
             {
-                _ConvertPush(callhash, src, to);
-                _Insert1(VM.OpCode.SYSCALL, "", to, BitConverter.GetBytes(InteropService.System_Contract_Call));
+                if (this.outModule.option.useBrc8)
+                {
+                    byte _pcount = (byte)defs.Parameters.Count;
+                    byte _rvcount = (byte)(defs.ReturnType.FullName == "System.Void" ? 0 : 1);
+
+
+                    if (callhash.All(v => v == 0))//empty brc4
+                    {
+                        throw new Exception("brc4 calltype==6");
+                    }
+                    else
+                    {
+                        var bytes = new byte[] { _rvcount, _pcount }.Concat(callhash).ToArray();
+                        _Convert1by1(VM.OpCode.CALL_E, null, to, bytes);
+
+                    }
+
+                }
+                else
+                {
+                    _Convert1by1(VM.OpCode.APPCALL, null, to, callhash);
+                }
+
             }
             else if (calltype == 5)
             {
@@ -936,23 +985,40 @@ namespace Bhp.Compiler.MSIL
 
                 //a syscall
                 {
-                    var bytes = BitConverter.GetBytes(InteropService.System_Runtime_Notify);
-                    //byte[] outbytes = new byte[bytes.Length + 1];
-                    //outbytes[0] = (byte)bytes.Length;
-                    //Array.Copy(bytes, 0, outbytes, 1, bytes.Length);
+                    var bytes = Encoding.UTF8.GetBytes("Bhp.Runtime.Notify");
+                    byte[] outbytes = new byte[bytes.Length + 1];
+                    outbytes[0] = (byte)bytes.Length;
+                    Array.Copy(bytes, 0, outbytes, 1, bytes.Length);
                     //bytes.Prepend 函数在 dotnet framework 4.6 编译不过
-                    _Convert1by1(VM.OpCode.SYSCALL, null, to, bytes);
+                    _Convert1by1(VM.OpCode.SYSCALL, null, to, outbytes);
                 }
             }
             else if (calltype == 6)
             {
                 _ConvertPush(callpcount, src, to);
                 _Convert1by1(VM.OpCode.ROLL, null, to);
-                _Convert1by1(VM.OpCode.SYSCALL, null, to, BitConverter.GetBytes(InteropService.System_Contract_Call));
+
+                //dyn appcall
+                if (this.outModule.option.useBrc8)
+                {
+                    byte _pcount = (byte)defs.Parameters.Count;
+                    byte _rvcount = (byte)(defs.ReturnType.FullName == "System.Void" ? 0 : 1);
+                    //byte signature = (byte)(
+                    //    (retcount << 7)
+                    //    |
+                    //    defs.Parameters.Count
+                    //    );
+                    _Convert1by1(VM.OpCode.CALL_ED, null, to, new byte[] { _rvcount, _pcount });
+                }
+                else
+                {
+                    byte[] nullhash = new byte[20];
+                    _Convert1by1(VM.OpCode.APPCALL, null, to, nullhash);
+                }
+
             }
             return 0;
         }
-
         private bool TryInsertMethod(BhpModule outModule, Mono.Cecil.MethodDefinition method)
         {
             var oldaddr = this.addr;
@@ -962,7 +1028,8 @@ namespace Bhp.Compiler.MSIL
                 oldaddrconv[k] = addrconv[k];
             }
             var typename = method.DeclaringType.FullName;
-            if (inModule.mapType.TryGetValue(typename, out ILType type) == false)
+            ILType type;
+            if (inModule.mapType.TryGetValue(typename, out type) == false)
             {
                 type = new ILType(null, method.DeclaringType, logger);
                 inModule.mapType[typename] = type;
@@ -971,21 +1038,34 @@ namespace Bhp.Compiler.MSIL
             var _method = type.methods[method.FullName];
             try
             {
-                if (method.Is_cctor())
+                BhpMethod nm = new BhpMethod();
+                if (method.FullName.Contains(".cctor"))
                 {
                     CctorSubVM.Parse(_method, this.outModule);
                     //continue;
                     return false;
                 }
-                if (method.Is_ctor())
+                if (method.IsConstructor)
                 {
                     return false;
                     //continue;
                 }
-
-                BhpMethod nm = new BhpMethod(_method);
+                nm._namespace = method.DeclaringType.FullName;
+                nm.name = method.FullName;
+                nm.displayName = method.Name;
+                Mono.Collections.Generic.Collection<Mono.Cecil.CustomAttribute> ca = method.CustomAttributes;
+                foreach (var attr in ca)
+                {
+                    if (attr.AttributeType.Name == "DisplayNameAttribute")
+                    {
+                        nm.displayName = (string)attr.ConstructorArguments[0].Value;
+                    }
+                }
+                nm.inSmartContract = method.DeclaringType.BaseType.Name == "SmartContract";
+                nm.isPublic = method.IsPublic;
                 this.methodLink[_method] = nm;
                 outModule.mapMethods[nm.name] = nm;
+
                 ConvertMethod(_method, nm);
                 return true;
             }
@@ -1004,41 +1084,6 @@ namespace Bhp.Compiler.MSIL
                 }
             }
         }
-        private int _ConvertCgt(ILMethod method, OpCode src, BhpMethod to)
-        {
-            var code = to.body_Codes.Last().Value;
-            if (code.code == VM.OpCode.PUSHNULL)
-            {
-                //remove last code
-                to.body_Codes.Remove(code.addr);
-                this.addr = code.addr;
-                _Convert1by1(VM.OpCode.ISNULL, src, to);
-                _Convert1by1(VM.OpCode.NOT, src, to);
-            }
-            else
-            {
-                _Convert1by1(VM.OpCode.GT, src, to);
-            }
-            return 0;
-        }
-
-        private int _ConvertCeq(ILMethod method, OpCode src, BhpMethod to)
-        {
-            var code = to.body_Codes.Last().Value;
-            if (code.code == VM.OpCode.PUSHNULL)
-            {
-                //remove last code
-                to.body_Codes.Remove(code.addr);
-                this.addr = code.addr;
-                _Convert1by1(VM.OpCode.ISNULL, src, to);
-            }
-            else
-            {
-                _Convert1by1(VM.OpCode.NUMEQUAL, src, to);
-            }
-            return 0;
-        }
-
         private int _ConvertNewArr(ILMethod method, OpCode src, BhpMethod to)
         {
             var type = src.tokenType;
@@ -1059,54 +1104,6 @@ namespace Bhp.Compiler.MSIL
                             _Convert1by1(VM.OpCode.DUP, null, to);
                             _ConvertPush(i / 2, null, to);
                             _ConvertPush(info, null, to);
-                            _Convert1by1(VM.OpCode.SETITEM, null, to);
-                        }
-                        return 3;
-                    }
-                    else if (type == "System.UInt32")
-                    {
-                        for (var i = 0; i < data.Length; i += 4)
-                        {
-                            var info = BitConverter.ToUInt32(data, i);
-                            _Convert1by1(VM.OpCode.DUP, null, to);
-                            _ConvertPush(i / 4, null, to);
-                            _ConvertPush(info, null, to);
-                            _Convert1by1(VM.OpCode.SETITEM, null, to);
-                        }
-                        return 3;
-                    }
-                    else if (type == "System.Int32")
-                    {
-                        for (var i = 0; i < data.Length; i += 4)
-                        {
-                            var info = BitConverter.ToInt32(data, i);
-                            _Convert1by1(VM.OpCode.DUP, null, to);
-                            _ConvertPush(i / 4, null, to);
-                            _ConvertPush(info, null, to);
-                            _Convert1by1(VM.OpCode.SETITEM, null, to);
-                        }
-                        return 3;
-                    }
-                    else if (type == "System.Int64")
-                    {
-                        for (var i = 0; i < data.Length; i += 8)
-                        {
-                            var info = BitConverter.ToInt64(data, i);
-                            _Convert1by1(VM.OpCode.DUP, null, to);
-                            _ConvertPush(i / 8, null, to);
-                            _ConvertPush(info, null, to);
-                            _Convert1by1(VM.OpCode.SETITEM, null, to);
-                        }
-                        return 3;
-                    }
-                    else if (type == "System.UInt64")
-                    {
-                        for (var i = 0; i < data.Length; i += 8)
-                        {
-                            var info = (System.Numerics.BigInteger)BitConverter.ToUInt64(data, i);
-                            _Convert1by1(VM.OpCode.DUP, null, to);
-                            _ConvertPush(i / 8, null, to);
-                            _ConvertPush(info.ToByteArray(), null, to);
                             _Convert1by1(VM.OpCode.SETITEM, null, to);
                         }
                         return 3;
@@ -1138,7 +1135,7 @@ namespace Bhp.Compiler.MSIL
                 int n = method.GetNextCodeAddr(src.addr);
                 int n2 = method.GetNextCodeAddr(n);
                 int n3 = method.GetNextCodeAddr(n2);
-                _ = method.GetNextCodeAddr(n3);
+                int n4 = method.GetNextCodeAddr(n3);
 
                 if (n >= 0 && n2 >= 0 && n3 >= 0 && method.body_Codes[n].code == CodeEx.Dup && method.body_Codes[n2].code == CodeEx.Ldtoken && method.body_Codes[n3].code == CodeEx.Call)
                 {
@@ -1157,6 +1154,7 @@ namespace Bhp.Compiler.MSIL
                     var outbyte = new byte[number];
                     var skip = 0;
                     int start = n;
+                    System.Collections.Generic.Stack<int> stack = new System.Collections.Generic.Stack<int>();
                     var _code = method.body_Codes[start];
                     if (_code.code == CodeEx.Dup)//生成的setlem代码用dup
                     {
@@ -1247,8 +1245,12 @@ namespace Bhp.Compiler.MSIL
                     return skip;
                 }
             }
-        }
 
+
+
+            return 0;
+
+        }
         private int _ConvertInitObj(OpCode src, BhpMethod to)
         {
             var type = (src.tokenUnknown as Mono.Cecil.TypeReference).Resolve();
@@ -1305,7 +1307,6 @@ namespace Bhp.Compiler.MSIL
             //_Convert1by1(VM.OpCode.DROP, null, to);
             return 0;
         }
-
         private int _ConvertNewObj(OpCode src, BhpMethod to)
         {
             var _type = (src.tokenUnknown as Mono.Cecil.MethodReference);
