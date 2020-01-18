@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using System.Text;
 
 namespace Bhp.Compiler.MSIL
 {
+
     //public class Converter
     //{
     //    public static byte[] Convert(System.IO.Stream dllstream, ILogger logger = null)
@@ -23,7 +23,6 @@ namespace Bhp.Compiler.MSIL
     //    }
 
     //}
-
     class DefLogger : ILogger
     {
         public void Log(string log)
@@ -31,7 +30,6 @@ namespace Bhp.Compiler.MSIL
             Console.WriteLine(log);
         }
     }
-
     /// <summary>
     /// 从ILCode 向 VM 转换的转换器
     /// </summary>
@@ -63,18 +61,16 @@ namespace Bhp.Compiler.MSIL
 #endif
         }
 
-        private readonly ILogger logger;
+        ILogger logger;
         public BhpModule outModule;
-        private ILModule inModule;
+        ILModule inModule;
         public Dictionary<ILMethod, BhpMethod> methodLink = new Dictionary<ILMethod, BhpMethod>();
         public BhpModule Convert(ILModule _in, ConvOption option = null)
         {
             this.inModule = _in;
             //logger.Log("beginConvert.");
-            this.outModule = new BhpModule(this.logger)
-            {
-                option = option ?? ConvOption.Default
-            };
+            this.outModule = new BhpModule(this.logger);
+            this.outModule.option = option == null ? ConvOption.Default : option;
             foreach (var t in _in.mapType)
             {
                 if (t.Key.Contains("<"))
@@ -87,32 +83,42 @@ namespace Bhp.Compiler.MSIL
                     if (m.Value.method == null) continue;
                     if (m.Value.method.IsAddOn || m.Value.method.IsRemoveOn)
                         continue;//event 自动生成的代码，不要
-                    if (m.Value.method.Is_cctor())
+                    BhpMethod nm = new BhpMethod();
+                    if (m.Key.Contains(".cctor"))
                     {
-                        //if cctor contains sth can not be as a const value.
-                        //  then need 1.record these cctor's code.
-                        //            2.insert them to main function
                         CctorSubVM.Parse(m.Value, this.outModule);
                         continue;
                     }
-                    if (m.Value.method.Is_ctor()) continue;
-                    BhpMethod nm = new BhpMethod(m.Value);
+                    if (m.Value.method.IsConstructor) continue;
+                    nm._namespace = m.Value.method.DeclaringType.FullName;
+                    nm.name = m.Value.method.FullName;
+                    nm.displayName = m.Value.method.Name;
+
+                    Mono.Collections.Generic.Collection<Mono.Cecil.CustomAttribute> ca = m.Value.method.CustomAttributes;
+                    foreach (var attr in ca)
+                    {
+                        if (attr.AttributeType.Name == "DisplayNameAttribute")
+                        {
+                            nm.displayName = (string)attr.ConstructorArguments[0].Value;
+                        }
+                    }
+                    nm.inSmartContract = m.Value.method.DeclaringType.BaseType.Name == "SmartContract";
+                    nm.isPublic = m.Value.method.IsPublic;
                     this.methodLink[m.Value] = nm;
                     outModule.mapMethods[nm.name] = nm;
-                }
 
+                }
                 foreach (var e in t.Value.fields)
                 {
                     if (e.Value.isEvent)
                     {
-                        BhpEvent ae = new BhpEvent(e.Value);
+                        BhpEvent ae = new BhpEvent();
+                        ae._namespace = e.Value.field.DeclaringType.FullName;
+                        ae.name = ae._namespace + "::" + e.Key;
+                        ae.displayName = e.Value.displayName;
+                        ae.returntype = e.Value.returntype;
+                        ae.paramtypes = e.Value.paramtypes;
                         outModule.mapEvents[ae.name] = ae;
-                    }
-                    else if (e.Value.field.IsStatic)
-                    {
-                        var _fieldindex = outModule.mapFields.Count;
-                        var field = new BhpField(e.Key, e.Value.type, _fieldindex);
-                        outModule.mapFields[e.Value.field.FullName] = field;
                     }
                 }
             }
@@ -129,8 +135,9 @@ namespace Bhp.Compiler.MSIL
 
                 foreach (var m in value.methods)
                 {
+
                     if (m.Value.method == null) continue;
-                    if (m.Value.method.Is_cctor())
+                    if (m.Key.Contains(".cctor"))
                     {
                         continue;
                     }
@@ -138,6 +145,7 @@ namespace Bhp.Compiler.MSIL
                         continue;//event 自动生成的代码，不要
 
                     var nm = this.methodLink[m.Value];
+
 
                     //try
                     {
@@ -153,8 +161,9 @@ namespace Bhp.Compiler.MSIL
                                 }
                             }
                         }
-                        catch
+                        catch (Exception err)
                         {
+
                         }
 
                         foreach (var src in m.Value.paramtypes)
@@ -162,21 +171,14 @@ namespace Bhp.Compiler.MSIL
                             nm.paramtypes.Add(new BhpParam(src.name, src.type));
                         }
 
-                        if (IsAppCall(m.Value.method, out byte[] outcall))
+                        byte[] outcall; string name; VM.OpCode[] opcodes; string[] opdata;
+                        if (IsAppCall(m.Value.method, out outcall))
                             continue;
                         if (IsNonCall(m.Value.method))
                             continue;
-                        if (IsMixAttribute(m.Value.method, out VM.OpCode[] opcodes, out string[] opdata))
+                        if (IsMixAttribute(m.Value.method, out opcodes, out opdata))
                             continue;
 
-                        if (m.Key.Contains("::Main("))
-                        {
-                            BhpMethod _m = outModule.mapMethods[m.Key];
-                            if (_m.inSmartContract)
-                            {
-                                nm.isEntry = true;
-                            }
-                        }
                         this.ConvertMethod(m.Value, nm);
                     }
                     //catch (Exception err)
@@ -211,19 +213,12 @@ namespace Bhp.Compiler.MSIL
             }
             if (mainmethod == "")
             {
-                mainmethod = InsertAutoEntry();
-                logger.Log("Auto Insert entrypoint.");
+                throw new Exception("Can't find EntryPoint,Check it.");
             }
             else
             {
                 //单一默认入口
                 logger.Log("Find entrypoint:" + mainmethod);
-            }
-
-            var attr = outModule.mapMethods.Values.Where(u => u.inSmartContract).Select(u => u.type.attributes.ToArray()).FirstOrDefault();
-            if (attr?.Length > 0)
-            {
-                outModule.attributes.AddRange(attr);
             }
 
             outModule.mainMethod = mainmethod;
@@ -235,102 +230,6 @@ namespace Bhp.Compiler.MSIL
             //this.outModule.Build();
             return outModule;
         }
-
-        private string InsertAutoEntry()
-        {
-            string name = "::autoentrypoint";
-            BhpMethod autoEntry = new BhpMethod();
-            autoEntry._namespace = "";
-            autoEntry.name = "Main";
-            autoEntry.displayName = "Main";
-            autoEntry.paramtypes.Add(new BhpParam(name, "string"));
-            autoEntry.paramtypes.Add(new BhpParam(name, "array"));
-            autoEntry.returntype = "object";
-            autoEntry.funcaddr = 0;
-            FillEntryMethod(autoEntry);
-            outModule.mapMethods[name] = autoEntry;
-
-            return name;
-        }
-
-        private void FillEntryMethod(BhpMethod to)
-        {
-            this.addr = 0;
-            this.addrconv.Clear();
-
-#if DEBUG
-            _Insert1(VM.OpCode.NOP, "this is a debug code.", to);
-#endif
-            _insertSharedStaticVarCode(to);
-
-            _insertBeginCodeEntry(to);
-
-            List<int> calladdr = new List<int>();
-            List<int> calladdrbegin = new List<int>();
-            //add callfunc
-            foreach (var m in this.outModule.mapMethods)
-            {
-                if (m.Value.inSmartContract && m.Value.isPublic)
-                {//add a call;
-                    //get name
-                    calladdrbegin.Add(this.addr);
-                    _Insert1(VM.OpCode.DUPFROMALTSTACK, "get name", to);
-                    _InsertPush(0, "", to);
-                    _Insert1(VM.OpCode.PICKITEM, "", to);
-                    _InsertPush(System.Text.Encoding.UTF8.GetBytes(m.Value.displayName), "", to);
-                    _Insert1(VM.OpCode.NUMEQUAL, "", to);
-                    calladdr.Add(this.addr);//record add fix jumppos later
-                    _Insert1(VM.OpCode.JMPIFNOT, "tonextcallpos", to, new byte[] { 0, 0 });
-                    if (m.Value.paramtypes.Count > 0)
-                    {
-                        for (var i = m.Value.paramtypes.Count - 1; i >= 0; i--)
-                        {
-                            _Insert1(VM.OpCode.DUPFROMALTSTACK, "get params", to);
-                            _InsertPush(1, "", to);
-                            _Insert1(VM.OpCode.PICKITEM, "", to);
-
-                            _InsertPush(i, "get one param:" + i, to);
-                            _Insert1(VM.OpCode.PICKITEM, "", to);
-                        }
-                        //add params;
-                    }
-                    //call and return it
-                    var c = _Insert1(VM.OpCode.CALL, "", to, new byte[] { 0, 0 });
-                    c.needfixfunc = true;
-                    c.srcfunc = m.Key;
-                    if (m.Value.returntype == "System.Void")
-                    {
-                        _Insert1(VM.OpCode.PUSH0, "", to);
-                    }
-                    _insertEndCode(to, null);
-                    _Insert1(VM.OpCode.RET, "", to);
-                }
-            }
-
-            //add returen
-            calladdrbegin.Add(this.addr);//record add fix jumppos later
-
-            _insertEndCode(to, null);
-            //if go here,mean methodname is wrong
-            //use throw to instead ret,make vm  fault.
-            _Insert1(VM.OpCode.THROW, "", to);
-            //_Insert1(VM.OpCode.RET, "", to);
-
-            //convert all Jmp
-            for (var i = 0; i < calladdr.Count; i++)
-            {
-                var addr = calladdr[i];
-                var nextaddr = calladdrbegin[i + 1];
-                var op = to.body_Codes[addr];
-                Int16 addroff = (Int16)(nextaddr - addr);
-                op.bytes = BitConverter.GetBytes(addroff);
-            }
-#if DEBUG
-            _Insert1(VM.OpCode.NOP, "this is a end debug code.", to);
-#endif
-            ConvertAddrInMethod(to);
-        }
-
         private void LinkCode(string main)
         {
             if (this.outModule.mapMethods.ContainsKey(main) == false)
@@ -412,8 +311,16 @@ namespace Bhp.Compiler.MSIL
             }
         }
 
-        private void FillMethod(ILMethod from, BhpMethod to, bool withReturn)
+        private void ConvertMethod(ILMethod from, BhpMethod to)
         {
+
+
+            this.addr = 0;
+            this.addrconv.Clear();
+
+            //插入一个记录深度的代码，再往前的是参数
+            _insertBeginCode(from, to);
+
             int skipcount = 0;
             foreach (var src in from.body_Codes.Values)
             {
@@ -426,8 +333,7 @@ namespace Bhp.Compiler.MSIL
                     //在return之前加入清理参数代码
                     if (src.code == CodeEx.Ret)//before return
                     {
-                        if (!withReturn) break;
-                        _insertEndCode(to, src);
+                        _insertEndCode(from, to, src);
                     }
                     try
                     {
@@ -443,23 +349,8 @@ namespace Bhp.Compiler.MSIL
             ConvertAddrInMethod(to);
         }
 
-        private void ConvertMethod(ILMethod from, BhpMethod to)
-        {
-            this.addr = 0;
-            this.addrconv.Clear();
-
-            if (to.isEntry)
-            {
-                _insertSharedStaticVarCode(to);
-            }
-            //插入一个记录深度的代码，再往前的是参数
-            _insertBeginCode(from, to);
-
-            FillMethod(from, to, true);
-        }
-
-        private readonly Dictionary<int, int> addrconv = new Dictionary<int, int>();
-        private int addr = 0;
+        Dictionary<int, int> addrconv = new Dictionary<int, int>();
+        int addr = 0;
 
         //Dictionary<string, string[]> srccodes = new Dictionary<string, string[]>();
         //string getSrcCode(string url, int line)
@@ -479,7 +370,6 @@ namespace Bhp.Compiler.MSIL
         //    }
         //    return "";
         //}
-
         static int getNumber(BhpCode code)
         {
             if (code.code <= VM.OpCode.PUSHBYTES75 && code.code >= VM.OpCode.PUSHBYTES1)
@@ -505,7 +395,6 @@ namespace Bhp.Compiler.MSIL
             else
                 throw new Exception("not support getNumber From this:" + code.ToString());
         }
-
         static int pushdata1bytes2int(byte[] data)
         {
             byte[] target = new byte[4];
@@ -514,7 +403,6 @@ namespace Bhp.Compiler.MSIL
             var n = BitConverter.ToInt32(target, 0);
             return n;
         }
-
         private void ConvertAddrInMethod(BhpMethod to)
         {
             foreach (var c in to.body_Codes.Values)
@@ -533,10 +421,12 @@ namespace Bhp.Compiler.MSIL
                     {
                         throw new Exception("cannot convert addr in: " + to.name + "\r\n");
                     }
+
+
+
                 }
             }
         }
-
         private int ConvertCode(ILMethod method, OpCode src, BhpMethod to)
         {
             int skipcount = 0;
@@ -554,7 +444,7 @@ namespace Bhp.Compiler.MSIL
                     break;
 
                 case CodeEx.Ldnull:
-                    _Convert1by1(VM.OpCode.PUSHNULL, src, to);
+                    _ConvertPush(new byte[0], src, to);
                     break;
 
                 case CodeEx.Ldc_I4:
@@ -680,6 +570,7 @@ namespace Bhp.Compiler.MSIL
                         //    code.srcaddrswitch[i] = src.tokenAddr_Switch[i];
                         //}
                     }
+                    break;
                 case CodeEx.Brtrue:
                 case CodeEx.Brtrue_S:
                     {
@@ -869,10 +760,10 @@ namespace Bhp.Compiler.MSIL
                     break;
                 case CodeEx.Cgt:
                 case CodeEx.Cgt_Un:
-                    skipcount = _ConvertCgt(method, src, to);
+                    _Convert1by1(VM.OpCode.GT, src, to);
                     break;
                 case CodeEx.Ceq:
-                    skipcount = _ConvertCeq(method, src, to);
+                    _Convert1by1(VM.OpCode.NUMEQUAL, src, to);
                     break;
 
                 //call
@@ -891,12 +782,15 @@ namespace Bhp.Compiler.MSIL
                 //用意为byte[] 取一部分.....
                 // en: intent to use byte[] as array.....
                 case CodeEx.Ldelem_U1:
+                    _ConvertPush(1, src, to);
+                    _Convert1by1(VM.OpCode.SUBSTR, null, to);
+                    break;
+                //用意为sbyte[] 取一部分.....
+                // en: intent to use sbyte[] as array.....
                 case CodeEx.Ldelem_I1:
-                //_ConvertPush(1, src, to);
-                //_Convert1by1(VM.OpCode.SUBSTR, null, to);
-                //break;
-                //now we can use pickitem for byte[]
-
+                    _ConvertPush(1, src, to);
+                    _Convert1by1(VM.OpCode.SUBSTR, null, to);
+                    break;
                 case CodeEx.Ldelem_Any:
                 case CodeEx.Ldelem_I:
                 //case CodeEx.Ldelem_I1:
@@ -915,7 +809,7 @@ namespace Bhp.Compiler.MSIL
                     break;
 
                 case CodeEx.Stelem_I1:
-                    {
+                      {
                         // WILL TRACE VARIABLE ORIGIN "Z" IN ALTSTACK!
                         // EXPECTS:  source[index] = b; // index and b must be variables! constants will fail!
                         /*
@@ -930,54 +824,54 @@ namespace Bhp.Compiler.MSIL
                         1 c3 PICKITEM
                         */
 
-                        if ((to.body_Codes[addr - 1].code == VM.OpCode.PICKITEM)
-                          && (to.body_Codes[addr - 4].code == VM.OpCode.PICKITEM)
-                          && (to.body_Codes[addr - 7].code == VM.OpCode.PICKITEM)
-                          && (to.body_Codes[addr - 3].code == VM.OpCode.DUPFROMALTSTACK)
-                          && (to.body_Codes[addr - 6].code == VM.OpCode.DUPFROMALTSTACK)
-                          && (to.body_Codes[addr - 9].code == VM.OpCode.DUPFROMALTSTACK)
-                          && ((to.body_Codes[addr - 2].code >= VM.OpCode.PUSH0) && (to.body_Codes[addr - 2].code <= VM.OpCode.PUSH16))
-                          && ((to.body_Codes[addr - 5].code >= VM.OpCode.PUSH0) && (to.body_Codes[addr - 5].code <= VM.OpCode.PUSH16))
-                          && ((to.body_Codes[addr - 8].code >= VM.OpCode.PUSH0) && (to.body_Codes[addr - 8].code <= VM.OpCode.PUSH16))
+                        if(  (to.body_Codes[addr-1].code == VM.OpCode.PICKITEM)
+                          && (to.body_Codes[addr-4].code == VM.OpCode.PICKITEM)
+                          && (to.body_Codes[addr-7].code == VM.OpCode.PICKITEM)
+                          && (to.body_Codes[addr-3].code == VM.OpCode.DUPFROMALTSTACK)
+                          && (to.body_Codes[addr-6].code == VM.OpCode.DUPFROMALTSTACK)
+                          && (to.body_Codes[addr-9].code == VM.OpCode.DUPFROMALTSTACK)
+                          && ((to.body_Codes[addr-2].code >= VM.OpCode.PUSH0) && (to.body_Codes[addr-2].code <= VM.OpCode.PUSH16))
+                          && ((to.body_Codes[addr-5].code >= VM.OpCode.PUSH0) && (to.body_Codes[addr-5].code <= VM.OpCode.PUSH16))
+                          && ((to.body_Codes[addr-8].code >= VM.OpCode.PUSH0) && (to.body_Codes[addr-8].code <= VM.OpCode.PUSH16))
                           )
-                        {
-                            // WILL REQUIRE TO PROCESS INFORMATION AND STORE IT AGAIN ON ALTSTACK CORRECT POSITION
-                            VM.OpCode PushZ = to.body_Codes[addr - 8].code;
+                          {
+                              // WILL REQUIRE TO PROCESS INFORMATION AND STORE IT AGAIN ON ALTSTACK CORRECT POSITION
+                              VM.OpCode PushZ = to.body_Codes[addr-8].code;
 
-                            _Convert1by1(VM.OpCode.PUSH2, null, to);
-                            _Convert1by1(VM.OpCode.PICK, null, to);
-                            _Convert1by1(VM.OpCode.PUSH2, null, to);
-                            _Convert1by1(VM.OpCode.PICK, null, to);
-                            _Convert1by1(VM.OpCode.LEFT, null, to);
-                            _Convert1by1(VM.OpCode.SWAP, null, to);
-                            _Convert1by1(VM.OpCode.CAT, null, to);
-                            _Convert1by1(VM.OpCode.ROT, null, to);
-                            _Convert1by1(VM.OpCode.ROT, null, to);
-                            _Convert1by1(VM.OpCode.OVER, null, to);
-                            _Convert1by1(VM.OpCode.ARRAYSIZE, null, to);
-                            _Convert1by1(VM.OpCode.DEC, null, to);
-                            _Convert1by1(VM.OpCode.SWAP, null, to);
-                            _Convert1by1(VM.OpCode.SUB, null, to);
-                            _Convert1by1(VM.OpCode.RIGHT, null, to);
-                            _Convert1by1(VM.OpCode.CAT, null, to);
+                              _Convert1by1(VM.OpCode.PUSH2, null, to);
+                              _Convert1by1(VM.OpCode.PICK, null, to);
+                              _Convert1by1(VM.OpCode.PUSH2, null, to);
+                              _Convert1by1(VM.OpCode.PICK, null, to);
+                              _Convert1by1(VM.OpCode.LEFT, null, to);
+                              _Convert1by1(VM.OpCode.SWAP, null, to);
+                              _Convert1by1(VM.OpCode.CAT, null, to);
+                              _Convert1by1(VM.OpCode.ROT, null, to);
+                              _Convert1by1(VM.OpCode.ROT, null, to);
+                              _Convert1by1(VM.OpCode.OVER, null, to);
+                              _Convert1by1(VM.OpCode.ARRAYSIZE, null, to);
+                              _Convert1by1(VM.OpCode.DEC, null, to);
+                              _Convert1by1(VM.OpCode.SWAP, null, to);
+                              _Convert1by1(VM.OpCode.SUB, null, to);
+                              _Convert1by1(VM.OpCode.RIGHT, null, to);
+                              _Convert1by1(VM.OpCode.CAT, null, to);
 
-                            // FINAL RESULT MUST GO BACK TO POSITION Z ON ALTSTACK
+                              // FINAL RESULT MUST GO BACK TO POSITION Z ON ALTSTACK
 
-                            // FINAL STACK:
-                            // 4 get array (dupfromaltstack)
-                            // 3 PushZ
-                            // 2 result
-                            // 1 setitem
+                              // FINAL STACK:
+                              // 4 get array (dupfromaltstack)
+                              // 3 PushZ
+                              // 2 result
+                              // 1 setitem
 
-                            _Convert1by1(VM.OpCode.DUPFROMALTSTACK, null, to);  // stack: [ array , result , ... ]
-                            _Convert1by1(PushZ, null, to);                      // stack: [ pushz, array , result , ... ]
-                            _Convert1by1(VM.OpCode.ROT, null, to);              // stack: [ result, pushz, array , ... ]
-                            _Convert1by1(VM.OpCode.SETITEM, null, to);          // stack: [ result, pushz, array , ... ]
-                        }
-                        else
-                            throw new Exception("Bhpmachine currently supports only variable indexed bytearray attribution, example: byte[] source; int index = 0; byte b = 1; source[index] = b;");
-                    } // end case
-                    break;
+                              _Convert1by1(VM.OpCode.DUPFROMALTSTACK, null, to);  // stack: [ array , result , ... ]
+                              _Convert1by1(PushZ, null, to);                      // stack: [ pushz, array , result , ... ]
+                              _Convert1by1(VM.OpCode.ROT, null, to);              // stack: [ result, pushz, array , ... ]
+                              _Convert1by1(VM.OpCode.SETITEM, null, to);          // stack: [ result, pushz, array , ... ]
+                          }
+                          else
+                              throw new Exception("bhpmachine currently supports only variable indexed bytearray attribution, example: byte[] source; int index = 0; byte b = 1; source[index] = b;");
+                      } // end case
+                      break;
                 case CodeEx.Stelem_Any:
                 case CodeEx.Stelem_I:
                 //case CodeEx.Stelem_I1:
@@ -1054,6 +948,7 @@ namespace Bhp.Compiler.MSIL
                     break;
 
                 case CodeEx.Ldsfld:
+
                     {
                         _Convert1by1(VM.OpCode.NOP, src, to);
                         var d = src.tokenUnknown as Mono.Cecil.FieldDefinition;
@@ -1063,34 +958,39 @@ namespace Bhp.Compiler.MSIL
                             ((d.Attributes & Mono.Cecil.FieldAttributes.Static) > 0)
                             )
                         {
-                            var fname = d.FullName;// d.DeclaringType.FullName + "::" + d.Name;
-                            var _src = outModule.staticfieldsWithConstValue[fname];
+                            var fname = d.DeclaringType.FullName + "::" + d.Name;
+                            var _src = outModule.staticfields[fname];
                             if (_src is byte[])
                             {
                                 var bytesrc = (byte[])_src;
                                 _ConvertPush(bytesrc, src, to);
                             }
-                            else if (_src is int intsrc)
+                            else if (_src is int)
                             {
+                                var intsrc = (int)_src;
                                 _ConvertPush(intsrc, src, to);
                             }
-                            else if (_src is long longsrc)
+                            else if (_src is long)
                             {
-                                _ConvertPush(longsrc, src, to);
+                                var intsrc = (long)_src;
+                                _ConvertPush(intsrc, src, to);
+
                             }
-                            else if (_src is bool bsrc)
+                            else if (_src is Boolean)
                             {
+                                var bsrc = (Boolean)_src;
                                 _ConvertPush(bsrc ? 1 : 0, src, to);
                             }
-                            else if (_src is string strsrc)
+                            else if (_src is string)
                             {
-                                var bytesrc = Encoding.UTF8.GetBytes(strsrc);
+                                var bytesrc = System.Text.Encoding.UTF8.GetBytes((string)_src);
                                 _ConvertPush(bytesrc, src, to);
                             }
-                            else if (_src is BigInteger bisrc)
+                            else if (_src is BigInteger)
                             {
-                                byte[] bytes = bisrc.ToByteArray();
+                                byte[] bytes = ((BigInteger)_src).ToByteArray();
                                 _ConvertPush(bytes, src, to);
+
                             }
                             else
                             {
@@ -1098,6 +998,7 @@ namespace Bhp.Compiler.MSIL
                             }
                             break;
                         }
+
 
                         //如果是调用event导致的这个代码，只找出他的名字
                         if (d.DeclaringType.HasEvents)
@@ -1121,32 +1022,9 @@ namespace Bhp.Compiler.MSIL
                             }
                         }
                         else
-                        {
-                            //如果走到这里，是一个静态成员，但是没有添加readonly 表示
-                            //lights add,need static var load function
-                            var field = this.outModule.mapFields[d.FullName];
-                            _Convert1by1(VM.OpCode.DUPFROMALTSTACKBOTTOM, null, to);
-                            _ConvertPush(field.index, null, to);
-
-                            _Insert1(VM.OpCode.PICKITEM, "", to);
-
-                            //throw new Exception("Just allow defined a static variable with readonly." + d.FullName);
+                        {//如果走到这里，是一个静态成员，但是没有添加readonly 表示
+                            throw new Exception("Just allow defined a static variable with readonly."+d.FullName);
                         }
-                    }
-                    break;
-                case CodeEx.Stsfld:
-                    {
-                        _Convert1by1(VM.OpCode.NOP, src, to);
-                        var d = src.tokenUnknown as Mono.Cecil.FieldDefinition;
-                        var field = this.outModule.mapFields[d.FullName];
-                        _Convert1by1(VM.OpCode.DUPFROMALTSTACKBOTTOM, null, to);
-                        _ConvertPush(field.index, null, to);
-
-                        //got v to top
-                        _ConvertPush(2, null, to);
-                        _Convert1by1(VM.OpCode.ROLL, null, to);
-
-                        _Insert1(VM.OpCode.SETITEM, "", to);
                     }
                     break;
                 case CodeEx.Throw:
@@ -1156,7 +1034,6 @@ namespace Bhp.Compiler.MSIL
                         //_Insert1(VM.OpCode.RET, "", to);
                     }
                     break;
-
                 default:
 #if WITHPDB
                     logger.Log("unsupported instruction " + src.code + "\r\n   in: " + to.name + "\r\n");
@@ -1168,5 +1045,6 @@ namespace Bhp.Compiler.MSIL
 
             return skipcount;
         }
+
     }
 }

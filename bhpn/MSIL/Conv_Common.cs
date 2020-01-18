@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Numerics;
-using System.Text;
 
 namespace Bhp.Compiler.MSIL
 {
@@ -81,6 +80,7 @@ namespace Bhp.Compiler.MSIL
                 _code.debugILCode = src.code.ToString();
             }
 
+
             addr++;
 
             _code.code = code;
@@ -128,7 +128,6 @@ namespace Bhp.Compiler.MSIL
             if (i > 0 && i <= 16) return _Convert1by1((VM.OpCode)(byte)i + 0x50, src, to);
             return _ConvertPush(((BigInteger)i).ToByteArray(), src, to);
         }
-
         private int _ConvertPushI8WithConv(ILMethod from, long i, OpCode src, BhpMethod to)
         {
             var next = from.GetNextCodeAddr(src.addr);
@@ -177,10 +176,14 @@ namespace Bhp.Compiler.MSIL
                     return 1;
                 }
             }
-            _ConvertPush(i, src, to);
-            return 0;
-        }
+           
 
+            {
+                _ConvertPush(i, src, to);
+                return 0;
+            }
+
+        }
         private int _ConvertPushI4WithConv(ILMethod from, int i, OpCode src, BhpMethod to)
         {
             var next = from.GetNextCodeAddr(src.addr);
@@ -223,72 +226,8 @@ namespace Bhp.Compiler.MSIL
                 _ConvertPush(i, src, to);
                 return 0;
             }
+
         }
-
-        private void _insertSharedStaticVarCode(BhpMethod to)
-        {
-            //insert init constvalue part
-            _InsertPush(this.outModule.mapFields.Count, "static var", to);
-            _Insert1(VM.OpCode.NEWARRAY, "", to);
-            _Insert1(VM.OpCode.TOALTSTACK, "", to);
-
-            foreach (var defvar in this.outModule.staticfieldsWithConstValue)
-            {
-                if (this.outModule.mapFields.TryGetValue(defvar.Key, out BhpField field))
-                {
-                    //array
-                    _Insert1(VM.OpCode.DUPFROMALTSTACKBOTTOM, "", to);
-
-                    //index
-                    _ConvertPush(field.index, null, to);
-
-                    //value
-                    #region insertValue
-                    //this static var had a default value.
-                    var _src = defvar.Value;
-                    if (_src is byte[])
-                    {
-                        var bytesrc = (byte[])_src;
-                        _ConvertPush(bytesrc, null, to);
-                    }
-                    else if (_src is int intsrc)
-                    {
-                        _ConvertPush(intsrc, null, to);
-                    }
-                    else if (_src is long longsrc)
-                    {
-                        _ConvertPush(longsrc, null, to);
-                    }
-                    else if (_src is bool bsrc)
-                    {
-                        _ConvertPush(bsrc ? 1 : 0, null, to);
-                    }
-                    else if (_src is string strsrc)
-                    {
-                        var bytesrc = Encoding.UTF8.GetBytes(strsrc);
-                        _ConvertPush(bytesrc, null, to);
-                    }
-                    else if (_src is BigInteger bisrc)
-                    {
-                        byte[] bytes = bisrc.ToByteArray();
-                        _ConvertPush(bytes, null, to);
-                    }
-                    else
-                    {
-                        //no need to init null
-                        _Convert1by1(VM.OpCode.PUSHNULL, null, to);
-                    }
-                    #endregion
-                    _Insert1(VM.OpCode.SETITEM, "", to);
-                }
-            }
-            //insert code part
-            foreach (var cctor in this.outModule.staticfieldsCctor)
-            {
-                FillMethod(cctor, to, false);
-            }
-        }
-
         private void _insertBeginCode(ILMethod from, BhpMethod to)
         {
             ////压入深度临时栈
@@ -323,29 +262,7 @@ namespace Bhp.Compiler.MSIL
             }
         }
 
-        private void _insertBeginCodeEntry(BhpMethod to)
-        {
-            _InsertPush(2, "begincode", to);
-            _Insert1(VM.OpCode.NEWARRAY, "", to);
-            _Insert1(VM.OpCode.TOALTSTACK, "", to);
-            //移动参数槽位
-            for (var i = 0; i < 2; i++)
-            {
-                //getarray
-                _Insert1(VM.OpCode.FROMALTSTACK, "set param:" + i, to);
-                _Insert1(VM.OpCode.DUP, null, to);
-                _Insert1(VM.OpCode.TOALTSTACK, null, to);
-
-                _InsertPush(i, "", to); //Array pos
-
-                _InsertPush(2, "", to); //Array item
-                _Insert1(VM.OpCode.ROLL, null, to);
-
-                _Insert1(VM.OpCode.SETITEM, null, to);
-            }
-        }
-
-        private void _insertEndCode(BhpMethod to, OpCode src)
+        private void _insertEndCode(ILMethod from, BhpMethod to, OpCode src)
         {
             ////占位不谢
             _Convert1by1(VM.OpCode.NOP, src, to);
@@ -389,5 +306,6 @@ namespace Bhp.Compiler.MSIL
             _Insert1(VM.OpCode.FROMALTSTACK, "endcode", to);
             _Insert1(VM.OpCode.DROP, "", to);
         }
+
     }
 }

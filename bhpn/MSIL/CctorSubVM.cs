@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace Bhp.Compiler.MSIL
 {
     class CctorSubVM
     {
-        private const ushort MaxArraySize = ushort.MaxValue;
-        private static Stack<object> calcStack;
-
+        static Stack<object> calcStack;
         public static object Dup(object src)
         {
             if (src.GetType() == typeof(byte[]))
@@ -37,10 +37,17 @@ namespace Bhp.Compiler.MSIL
                 return null;
             }
         }
-
-        public static bool Parse(ILMethod from, BhpModule to)
+        public static byte[] HexString2Bytes(string str)
         {
-            bool constValue = true;
+            byte[] outd = new byte[str.Length / 2];
+            for (var i = 0; i < str.Length / 2; i++)
+            {
+                outd[i] = byte.Parse(str.Substring(i * 2, 2), System.Globalization.NumberStyles.HexNumber);
+            }
+            return outd;
+        }
+        public static void Parse(ILMethod from, BhpModule to)
+        {
             calcStack = new Stack<object>();
             bool bEnd = false;
             foreach (var src in from.body_Codes.Values)
@@ -95,15 +102,12 @@ namespace Bhp.Compiler.MSIL
                             if ((src.tokenType == "System.Byte") || (src.tokenType == "System.SByte"))
                             {
                                 var count = (int)calcStack.Pop();
-                                if (count > MaxArraySize) throw new ArgumentException("MaxArraySize found");
                                 byte[] data = new byte[count];
                                 calcStack.Push(data);
                             }
                             else
                             {
-                                //other type mean is not a constValue
-                                constValue = false;
-                                continue;
+                                throw new Exception("only byte[] can be defined in here.");
                             }
                         }
                         break;
@@ -156,7 +160,7 @@ namespace Bhp.Compiler.MSIL
                                 }
                                 else
                                 {
-                                    var p = (int)calcStack.Pop();
+                                    var p =(int)calcStack.Pop();
                                     calcStack.Push(new System.Numerics.BigInteger(p).ToByteArray());
                                 }
                             }
@@ -186,10 +190,11 @@ namespace Bhp.Compiler.MSIL
                                         }
                                         else if (attrname == "HexToBytes")//HexString2Bytes to bytes[]
                                         {
-                                            var hex = text.HexString2Bytes();
+                                            if (text.IndexOf("0x") == 0) text = text.Substring(2);
+                                            var hex = HexString2Bytes(text);
                                             calcStack.Push(hex);
                                         }
-                                        else if (attrname == "ToBigInteger")
+                                        else if(attrname=="ToBigInteger")
                                         {
                                             var n = System.Numerics.BigInteger.Parse(text);
                                             calcStack.Push(n);
@@ -202,38 +207,21 @@ namespace Bhp.Compiler.MSIL
                     case CodeEx.Stsfld:
                         {
                             var field = src.tokenUnknown as Mono.Cecil.FieldReference;
-                            var fname = field.FullName;
-                            if (calcStack.Count == 0)
-                            {
-                                constValue = false;
-                                to.staticfieldsWithConstValue[fname] = null;
-                            }
-                            else
-                            {
-                                to.staticfieldsWithConstValue[fname] = calcStack.Pop();
-                            }
-                            // field.DeclaringType.FullName + "::" + field.Name;
+                            var fname = field.DeclaringType.FullName + "::" + field.Name;
+                            to.staticfields[fname] = calcStack.Pop();
                         }
                         break;
                     case CodeEx.Stelem_I1:
                         {
-                            var v = (byte)(int)calcStack.Pop();
-                            var index = (int)calcStack.Pop();
+                            var v =(byte)(int)calcStack.Pop();
+                            var index =(int)calcStack.Pop();
                             var array = calcStack.Pop() as byte[];
                             array[index] = v;
                         }
                         break;
-                    default:
-                        break;
                 }
             }
-            if (constValue == false)
-            {
-                if (to.staticfieldsCctor.Contains(from) == false)
-                    to.staticfieldsCctor.Add(from);
-            }
 
-            return constValue;
         }
     }
 }
